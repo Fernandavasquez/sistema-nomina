@@ -1,4 +1,5 @@
 # Levanta todo con:  docker compose up -d --build
+# Sistema: http://localhost:3001   ·   API/Swagger: http://localhost:3000/api/docs
 # Variables: copie .env.example como .env en esta carpeta y ajústelas.
 services:
   db:
@@ -47,6 +48,21 @@ services:
       - "3000:3000"
     volumes:
       - uploads:/app/uploads
+
+  frontend:
+    build: ./frontend
+    container_name: nomina-frontend
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      # El servidor de Next.js habla con el backend por la red interna de Docker
+      BACKEND_URL: http://backend:3000
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      TZ: America/Guatemala
+    ports:
+      - "3001:3001"
 
   # Interfaz web opcional para ver la base de datos: docker compose --profile tools up -d
   pgadmin:

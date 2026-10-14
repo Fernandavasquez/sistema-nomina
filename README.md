@@ -8,7 +8,7 @@ Sistema administrativo para gestionar **empleados**, sus **pagos semanales o qui
 | Autenticación | JWT + bcrypt, roles `ADMIN` / `OPERADOR` |
 | Infraestructura | Docker Compose |
 | Pruebas de API | Postman (colección en `postman/`) + Swagger |
-| Frontend | Next.js *(en construcción)* |
+| Frontend | Next.js 16 + React 19 + Tailwind CSS 4 + TanStack Query |
 
 ---
 
@@ -20,12 +20,13 @@ Requisitos: **Docker Desktop**. Para desarrollar sin Docker también necesita **
 # 1. Variables de entorno (solo la primera vez)
 cp .env.example .env        # en Windows: copy .env.example .env
 
-# 2. Levantar base de datos + backend
+# 2. Levantar todo: base de datos + backend + frontend
 docker compose up -d --build
 ```
 
 | Servicio | URL |
 |---|---|
+| **Sistema (frontend)** | **http://localhost:3001** |
 | API | http://localhost:3000/api |
 | Documentación Swagger | http://localhost:3000/api/docs |
 | Health check | http://localhost:3000/health |
@@ -34,9 +35,11 @@ docker compose up -d --build
 Al arrancar por primera vez se crean automáticamente las tablas (migraciones), los catálogos y el usuario administrador:
 
 - **Usuario:** `admin` · **Contraseña:** `Admin123!` (cámbiela desde la app o en `.env` antes del primer arranque)
-- Con `SEED_DEMO=true` también se crean 4 puestos y 4 empleados de ejemplo.
+- Con `SEED_DEMO=true` también se crean 4 puestos (Piloto, Ayudante, Bodeguero, Administrativo) y 4 empleados de ejemplo.
 
-### Desarrollo del backend sin Docker
+### Desarrollo sin Docker (con recarga automática)
+
+Backend:
 
 ```bash
 docker compose up -d db          # solo la base de datos
@@ -46,6 +49,37 @@ npm install
 npm run start:dev                # recarga automática
 npm test                         # pruebas unitarias
 ```
+
+Frontend (en otra terminal, con el backend corriendo):
+
+```bash
+cd frontend
+cp .env.example .env.local
+npm install
+npm run dev                      # http://localhost:3001
+```
+
+> Si ya tiene el frontend corriendo en Docker, deténgalo antes (`docker compose stop frontend`) porque usa el mismo puerto 3001.
+
+---
+
+## Frontend
+
+Menú lateral con todas las secciones; en el celular se abre con el botón ☰.
+
+| Sección | Qué permite |
+|---|---|
+| **Inicio** | Resumen: empleados activos, planilla, adelantos por descontar, saldo de préstamos, pagos pendientes y últimos pagos. |
+| **Empleados** | Lista con búsqueda y filtros; ficha con estado de cuenta, historial de pagos, foto del DPI y acciones rápidas (adelanto, préstamo). |
+| **Adelantos** | Pendientes y ya descontados; registrar, editar o eliminar mientras no se hayan descontado. |
+| **Préstamos** | Avance de pago, historial de cuotas, cambio de cuota y cancelación. |
+| **Períodos y nóminas** | Crear período con fechas sugeridas, calcular, revisar boletas, agregar bonos o descuentos y cerrar el pago. |
+| **Boleta de pago** | Detalle de percepciones y deducciones, lista para imprimir con espacio para firma. |
+| **Puestos** | Los cargos reales de la empresa (Piloto, Ayudante...) con cuántos empleados tiene cada uno. También se pueden crear desde el formulario de empleado con el botón **+**. |
+| **Conceptos de pago** | Tipos de bonos y descuentos manuales. |
+| **Usuarios** *(solo ADMIN)* | Crear, editar y desactivar usuarios. |
+
+**Seguridad:** el token JWT se guarda en una **cookie httpOnly**, que el JavaScript del navegador no puede leer. Por eso no lo puede robar un script malicioso (XSS). El navegador nunca llama directo a la API: pasa por `/api/backend/*` de Next.js, que agrega el token. Además, `src/proxy.ts` manda al login a quien no tiene sesión.
 
 ---
 
@@ -125,7 +159,7 @@ El diseño original se respetó (mismas tablas y relaciones). Estas son las mejo
 | Crear, procesar y revertir períodos; bonos manuales | ✅ | ✅ |
 | **Cerrar período (confirmar pago)** | ✅ | ❌ |
 | Eliminar empleados | ✅ | ❌ |
-| Catálogos (puestos, conceptos) | ✅ | solo ver |
+| Puestos y conceptos de pago | ✅ | solo ver |
 | Usuarios y roles | ✅ | ❌ |
 
 ---
@@ -138,7 +172,8 @@ Todos bajo `/api` y con `Authorization: Bearer <token>` (excepto el login). La l
 |---|---|
 | Auth | `POST /auth/login` · `GET /auth/perfil` · `PATCH /auth/cambiar-password` |
 | Usuarios | `GET/POST /usuarios` · `GET/PATCH/DELETE /usuarios/:id` · `GET /roles` |
-| Catálogos | `/puestos` · `GET /frecuencias-pago` · `/conceptos-nomina` |
+| Puestos | `GET/POST /puestos` (incluye cantidad de empleados) · `GET/PATCH/DELETE /puestos/:id` |
+| Catálogos | `GET /frecuencias-pago` · `/conceptos-nomina` |
 | Empleados | `GET/POST /empleados` · `GET/PATCH/DELETE /empleados/:id` · `GET /empleados/:id/estado-cuenta` · `POST/GET /empleados/:id/foto-dpi` |
 | Adelantos | `GET/POST /adelantos` · `GET/PATCH/DELETE /adelantos/:id` |
 | Préstamos | `GET/POST /prestamos` · `GET/PATCH/DELETE /prestamos/:id` · `PATCH /prestamos/:id/cancelar` |
@@ -182,6 +217,16 @@ sistema-nomina/
 │   │   ├── common/             enums, decoradores, filtros, utilidades
 │   │   └── database/           migraciones, seed, naming strategy
 │   └── Dockerfile
+├── frontend/
+│   └── src/
+│       ├── app/
+│       │   ├── login/          inicio de sesión
+│       │   ├── (app)/          páginas internas (comparten el menú lateral)
+│       │   └── api/            login/logout y proxy hacia el backend
+│       ├── components/         ui.tsx (botones, tablas, modales...), menú, formularios
+│       ├── hooks/              consultas comunes (sesión, catálogos)
+│       ├── lib/                cliente HTTP, tipos y formatos (Q, fechas, DPI)
+│       └── proxy.ts            redirige al login si no hay sesión
 ├── postman/
 ├── docker-compose.yml
 └── .env.example

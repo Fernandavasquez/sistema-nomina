@@ -1,13 +1,18 @@
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
 import { IsBoolean, IsOptional, IsString, Length, MaxLength } from 'class-validator';
 
+const trim = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value);
+
 export class CreatePuestoDto {
-  @ApiProperty({ example: 'Bodeguero' })
+  @ApiProperty({ example: 'Piloto' })
+  @Transform(trim)
   @IsString()
   @Length(2, 100)
   nombre: string;
 
-  @ApiPropertyOptional({ example: 'Encargado de inventario y despacho' })
+  @ApiPropertyOptional({ example: 'Conduce el camión de reparto' })
+  @Transform(trim)
   @IsOptional()
   @IsString()
   @MaxLength(255)

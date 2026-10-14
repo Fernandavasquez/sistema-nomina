@@ -2,7 +2,14 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, FindOptionsWhere, In, LessThanOrEqual, MoreThan, Not, Repository } from 'typeorm';
 import { Adelanto } from '../adelantos/entities/adelanto.entity.js';
-import { ConceptoSistema, EstadoEmpleado, EstadoNomina, EstadoPeriodo, EstadoPrestamo, FrecuenciaCodigo } from '../common/enums.js';
+import {
+  ConceptoSistema,
+  EstadoEmpleado,
+  EstadoNomina,
+  EstadoPeriodo,
+  EstadoPrestamo,
+  FrecuenciaCodigo,
+} from '../common/enums.js';
 import { addDays, today, toDate } from '../common/utils/dates.js';
 import { round2 } from '../common/utils/money.js';
 import { ConceptoNomina } from '../conceptos-nomina/entities/concepto-nomina.entity.js';
@@ -106,7 +113,8 @@ export class PeriodosNominaService {
 
   async update(id: number, dto: UpdatePeriodoNominaDto) {
     const periodo = await this.findOne(id);
-    if (periodo.estado === EstadoPeriodo.CERRADO) throw new ConflictException('Un período cerrado no se puede modificar');
+    if (periodo.estado === EstadoPeriodo.CERRADO)
+      throw new ConflictException('Un período cerrado no se puede modificar');
     if ((dto.fechaInicio || dto.fechaFin) && periodo.estado !== EstadoPeriodo.ABIERTO) {
       throw new ConflictException('Las fechas del período solo se cambian mientras está ABIERTO');
     }

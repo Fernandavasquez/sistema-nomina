@@ -1,0 +1,44 @@
+@import 'tailwindcss';
+
+@theme inline {
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+:root {
+  color-scheme: light;
+}
+
+body {
+  @apply bg-slate-50 text-slate-900;
+}
+
+/*
+ * Por defecto una columna de CSS Grid se estira para que quepa su contenido
+ * (por ejemplo, una tabla ancha) y desborda la pantalla en celulares.
+ * Con min-width: 0 la columna respeta su ancho y la tabla usa su propio scroll.
+ */
+.grid > * {
+  min-width: 0;
+}
+
+/* Números alineados en columnas de dinero */
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Al imprimir (boleta de pago) se oculta el menú y los botones */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: white;
+  }
+  .print-full {
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+}

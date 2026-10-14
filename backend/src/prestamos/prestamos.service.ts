@@ -110,7 +110,8 @@ export class PrestamosService {
 
   private validarCuota(cuota: number, tope: number, salario: number) {
     if (cuota > tope) throw new BadRequestException('La cuota no puede ser mayor al monto pendiente del préstamo');
-    if (cuota > salario) throw new BadRequestException(`La cuota no puede superar el salario del período (Q${salario})`);
+    if (cuota > salario)
+      throw new BadRequestException(`La cuota no puede superar el salario del período (Q${salario})`);
   }
 
   private async assertSinNominaEnProceso(prestamoId: number) {

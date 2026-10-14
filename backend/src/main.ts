@@ -1,12 +1,17 @@
 import 'reflect-metadata';
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 import { AppModule } from './app.module.js';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+  // El frontend (Next.js) reenvía la IP real del usuario en X-Forwarded-For.
+  // Solo se confía en ese encabezado cuando viene de redes internas (Docker / localhost).
+  app.set('trust proxy', 'loopback, linklocal, uniquelocal');
 
   app.use(helmet());
   app.setGlobalPrefix('api', { exclude: ['health'] });

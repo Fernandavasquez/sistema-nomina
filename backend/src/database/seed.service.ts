@@ -101,16 +101,21 @@ export class SeedService implements OnApplicationBootstrap {
   private async demo(m: EntityManager) {
     if (await m.count(Empleado)) return;
     const puestos = await m.save(
-      ['Bodeguero', 'Vendedor', 'Contador', 'Piloto repartidor'].map((nombre) => m.create(Puesto, { nombre })),
+      [
+        { nombre: 'Piloto', descripcion: 'Conduce el vehículo de reparto' },
+        { nombre: 'Ayudante', descripcion: 'Apoya al piloto en carga y descarga' },
+        { nombre: 'Bodeguero', descripcion: 'Inventario y despacho de mercadería' },
+        { nombre: 'Administrativo', descripcion: 'Oficina y contabilidad' },
+      ].map((p) => m.create(Puesto, p)),
     );
     const semanal = await m.findOneByOrFail(TipoFrecuenciaPago, { codigo: FrecuenciaCodigo.SEMANAL });
     const quincenal = await m.findOneByOrFail(TipoFrecuenciaPago, { codigo: FrecuenciaCodigo.QUINCENAL });
     const hoy = today();
     const empleados = [
-      ['Juan Carlos', 'Pérez García', '2547896541201', 0, semanal, 900],
-      ['María José', 'López Méndez', '3012456789101', 1, quincenal, 2500],
-      ['Luis Fernando', 'Ramírez Cruz', '1987654321012', 3, semanal, 1000],
-      ['Ana Lucía', 'Morales Díaz', '2654789123401', 2, quincenal, 4200],
+      ['Juan Carlos', 'Pérez García', '2547896541201', 0, semanal, 1000],
+      ['Luis Fernando', 'Ramírez Cruz', '1987654321012', 1, semanal, 900],
+      ['María José', 'López Méndez', '3012456789101', 2, quincenal, 2500],
+      ['Ana Lucía', 'Morales Díaz', '2654789123401', 3, quincenal, 4200],
     ] as const;
     await m.save(
       empleados.map(([nombres, apellidos, dpi, puesto, frecuencia, salario]) =>

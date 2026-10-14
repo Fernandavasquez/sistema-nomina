@@ -11,3 +11,6 @@ uploads/
 .DS_Store
 Thumbs.db
 *.tsbuildinfo
+
+# Configuración local de Claude Code
+.claude/

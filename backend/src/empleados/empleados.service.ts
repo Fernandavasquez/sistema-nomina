@@ -110,7 +110,10 @@ export class EmpleadosService {
     const empleado = await this.findOne(id);
     const [adelantosPendientes, prestamosActivos, ultimasNominas] = await Promise.all([
       this.adelantos.find({ where: { empleadoId: id, aplicado: false }, order: { fechaSolicitud: 'ASC' } }),
-      this.prestamos.find({ where: { empleadoId: id, estado: EstadoPrestamo.ACTIVO }, order: { fechaSolicitud: 'ASC' } }),
+      this.prestamos.find({
+        where: { empleadoId: id, estado: EstadoPrestamo.ACTIVO },
+        order: { fechaSolicitud: 'ASC' },
+      }),
       this.nominas.find({
         where: { empleadoId: id },
         relations: { periodo: true },
