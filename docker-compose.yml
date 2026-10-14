@@ -1,0 +1,66 @@
+# Levanta todo con:  docker compose up -d --build
+# Variables: copie .env.example como .env en esta carpeta y ajústelas.
+services:
+  db:
+    image: postgres:17-alpine
+    container_name: nomina-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-nomina}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-nomina}
+      POSTGRES_DB: ${DB_NAME:-nomina}
+      TZ: America/Guatemala
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-nomina} -d ${DB_NAME:-nomina}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: ./backend
+    container_name: nomina-backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PORT: 3000
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3001}
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USER: ${DB_USER:-nomina}
+      DB_PASSWORD: ${DB_PASSWORD:-nomina}
+      DB_NAME: ${DB_NAME:-nomina}
+      JWT_SECRET: ${JWT_SECRET:?Defina JWT_SECRET en el archivo .env}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-8h}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@empresa.com}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-Admin123!}
+      SEED_DEMO: ${SEED_DEMO:-true}
+      UPLOAD_DIR: /app/uploads
+      TZ: America/Guatemala
+    ports:
+      - "3000:3000"
+    volumes:
+      - uploads:/app/uploads
+
+  # Interfaz web opcional para ver la base de datos: docker compose --profile tools up -d
+  pgadmin:
+    image: dpage/pgadmin4:9
+    container_name: nomina-pgadmin
+    profiles: ["tools"]
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@empresa.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80"
+    depends_on:
+      - db
+
+volumes:
+  pgdata:
+  uploads:

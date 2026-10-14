@@ -1,0 +1,71 @@
+import { Body, Controller, Delete, Get, HttpCode, Param, ParseIntPipe, Patch, Post, Query } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Roles } from '../common/decorators/roles.decorator.js';
+import { RolNombre } from '../common/enums.js';
+import {
+  CreatePeriodoNominaDto,
+  FiltroPeriodosDto,
+  SugerenciaPeriodoDto,
+  UpdatePeriodoNominaDto,
+} from './dto/periodo-nomina.dto.js';
+import { PeriodosNominaService } from './periodos-nomina.service.js';
+
+@ApiTags('Períodos de nómina')
+@ApiBearerAuth()
+@Controller('periodos-nomina')
+export class PeriodosNominaController {
+  constructor(private readonly service: PeriodosNominaService) {}
+
+  @Get()
+  findAll(@Query() filtro: FiltroPeriodosDto) {
+    return this.service.findAll(filtro);
+  }
+
+  @ApiOperation({ summary: 'Sugiere las fechas del siguiente período para una frecuencia' })
+  @Get('sugerencia')
+  sugerencia(@Query() { frecuenciaPagoId }: SugerenciaPeriodoDto) {
+    return this.service.sugerencia(frecuenciaPagoId);
+  }
+
+  @Get(':id')
+  detalle(@Param('id', ParseIntPipe) id: number) {
+    return this.service.detalle(id);
+  }
+
+  @Post()
+  create(@Body() dto: CreatePeriodoNominaDto) {
+    return this.service.create(dto);
+  }
+
+  @Patch(':id')
+  update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdatePeriodoNominaDto) {
+    return this.service.update(id, dto);
+  }
+
+  @Delete(':id')
+  remove(@Param('id', ParseIntPipe) id: number) {
+    return this.service.remove(id);
+  }
+
+  @ApiOperation({ summary: 'Calcula las nóminas del período (ABIERTO → PROCESADO)' })
+  @Post(':id/procesar')
+  @HttpCode(200)
+  procesar(@Param('id', ParseIntPipe) id: number) {
+    return this.service.procesar(id);
+  }
+
+  @ApiOperation({ summary: 'Elimina las nóminas calculadas (PROCESADO → ABIERTO)' })
+  @Post(':id/revertir')
+  @HttpCode(200)
+  revertir(@Param('id', ParseIntPipe) id: number) {
+    return this.service.revertir(id);
+  }
+
+  @ApiOperation({ summary: 'Confirma el pago: aplica adelantos y rebaja préstamos (PROCESADO → CERRADO)' })
+  @Roles(RolNombre.ADMIN)
+  @Post(':id/cerrar')
+  @HttpCode(200)
+  cerrar(@Param('id', ParseIntPipe) id: number) {
+    return this.service.cerrar(id);
+  }
+}
