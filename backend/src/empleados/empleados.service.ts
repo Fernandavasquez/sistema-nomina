@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Brackets, Repository } from 'typeorm';
+import { Brackets, Repository, SelectQueryBuilder } from 'typeorm';
 import { Adelanto } from '../adelantos/entities/adelanto.entity.js';
 import { EstadoPrestamo } from '../common/enums.js';
 import { round2 } from '../common/utils/money.js';
@@ -22,6 +22,16 @@ const TIPOS_FOTO: Record<string, string> = {
   'application/pdf': '.pdf',
 };
 const MAX_FOTO_BYTES = 5 * 1024 * 1024;
+
+/** "Pérez Muñoz" → "Perez Munoz" */
+function quitarTildes(texto: string): string {
+  return texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
+/** Evita que % o _ escritos por el usuario actúen como comodines de LIKE. */
+function escaparLike(texto: string): string {
+  return texto.replace(/[\\%_]/g, (c) => `\\${c}`);
+}
 
 @Injectable()
 export class EmpleadosService {
@@ -47,22 +57,38 @@ export class EmpleadosService {
       .orderBy('e.apellidos', 'ASC')
       .addOrderBy('e.nombres', 'ASC');
 
-    if (filtro.buscar?.trim()) {
-      const texto = `%${filtro.buscar.trim().toLowerCase()}%`;
-      qb.andWhere(
-        new Brackets((w) => {
-          w.where("LOWER(e.nombres || ' ' || e.apellidos) LIKE :texto", { texto }).orWhere('e.dpi LIKE :texto', {
-            texto,
-          });
-        }),
-      );
-    }
+    if (filtro.buscar?.trim()) this.filtrarPorTexto(qb, filtro.buscar);
     if (filtro.estado) qb.andWhere('e.estado = :estado', { estado: filtro.estado });
     if (filtro.puestoId) qb.andWhere('e.puestoId = :puestoId', { puestoId: filtro.puestoId });
     if (filtro.frecuenciaPagoId) {
       qb.andWhere('e.frecuenciaPagoId = :frecuenciaPagoId', { frecuenciaPagoId: filtro.frecuenciaPagoId });
     }
     return qb.getMany();
+  }
+
+  /**
+   * Búsqueda flexible por nombre o DPI:
+   * - sin importar mayúsculas ni tildes ("perez" encuentra "Pérez"),
+   * - varias palabras en cualquier orden ("garcia juan" encuentra "Juan Carlos Pérez García"),
+   * - DPI con o sin espacios ("2547 89654" encuentra "2547896541201").
+   */
+  private filtrarPorTexto(qb: SelectQueryBuilder<Empleado>, buscar: string) {
+    const terminos = quitarTildes(buscar.toLowerCase()).split(/\s+/).filter(Boolean);
+    const digitos = buscar.replace(/[\s-]/g, '');
+    const nombreSql = "translate(LOWER(e.nombres || ' ' || e.apellidos), 'áéíóúüñ', 'aeiouun')";
+
+    qb.andWhere(
+      new Brackets((w) => {
+        w.where(
+          new Brackets((nombre) => {
+            terminos.forEach((t, i) =>
+              nombre.andWhere(`${nombreSql} LIKE :t${i}`, { [`t${i}`]: `%${escaparLike(t)}%` }),
+            );
+          }),
+        );
+        if (/^\d+$/.test(digitos)) w.orWhere('e.dpi LIKE :dpi', { dpi: `%${digitos}%` });
+      }),
+    );
   }
 
   async findOne(id: number) {

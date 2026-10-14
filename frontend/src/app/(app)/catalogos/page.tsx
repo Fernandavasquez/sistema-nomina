@@ -169,7 +169,7 @@ function ConceptoModal({ concepto, onClose }: { concepto?: ConceptoNomina; onClo
                   setCodigo(
                     e.target.value
                       .normalize('NFD')
-                      .replace(/[̀-ͯ]/g, '')
+                      .replace(/[\u0300-\u036f]/g, '')
                       .toUpperCase()
                       .replace(/[^A-Z0-9]+/g, '_')
                       .replace(/^_|_$/g, '')

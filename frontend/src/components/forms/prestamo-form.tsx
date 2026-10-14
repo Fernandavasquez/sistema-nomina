@@ -1,12 +1,14 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
-import { Button, Field, Input, Modal, ModalFooter, Select, Textarea } from '@/components/ui';
-import { api, qs } from '@/lib/api';
+import { EmpleadoBuscador } from '@/components/forms/empleado-buscador';
+import { Button, Field, Input, Modal, ModalFooter, Textarea } from '@/components/ui';
+import { api } from '@/lib/api';
 import { money, nombreCompleto, today } from '@/lib/format';
 import type { Empleado, Prestamo } from '@/lib/types';
 
@@ -34,21 +36,19 @@ export function PrestamoFormModal(props: Props) {
 
 function PrestamoForm({ open, onClose, empleado }: Props) {
   const queryClient = useQueryClient();
-  const empleados = useQuery({
-    queryKey: ['empleados', { estado: 'ACTIVO' }],
-    queryFn: () => api.get<Empleado[]>(`/empleados${qs({ estado: 'ACTIVO' })}`),
-    enabled: open && !empleado,
-  });
+  // Empleado elegido en el buscador (cuando no viene fijo desde la ficha del empleado).
+  const [elegido, setElegido] = useState<Empleado | null>(null);
 
   const {
     register,
     handleSubmit,
     watch,
+    setValue,
     reset,
     formState: { errors },
   } = useForm<FormData>({
     resolver: zodResolver(schema),
-    values: {
+    defaultValues: {
       empleadoId: empleado?.id ?? 0,
       montoTotal: undefined as unknown as number,
       montoCuota: undefined as unknown as number,
@@ -57,7 +57,7 @@ function PrestamoForm({ open, onClose, empleado }: Props) {
     },
   });
 
-  const seleccionado = empleado ?? empleados.data?.find((e) => e.id === watch('empleadoId'));
+  const seleccionado = empleado ?? elegido;
   const total = watch('montoTotal');
   const cuota = watch('montoCuota');
   const pagos = total > 0 && cuota > 0 ? Math.ceil(total / cuota) : null;
@@ -90,14 +90,15 @@ function PrestamoForm({ open, onClose, empleado }: Props) {
         ) : (
           <Field label="Empleado" error={errors.empleadoId?.message}>
             {(id) => (
-              <Select id={id} invalid={!!errors.empleadoId} {...register('empleadoId', { valueAsNumber: true })}>
-                <option value={0}>{empleados.isLoading ? 'Cargando…' : 'Seleccione…'}</option>
-                {empleados.data?.map((e) => (
-                  <option key={e.id} value={e.id}>
-                    {e.apellidos}, {e.nombres}
-                  </option>
-                ))}
-              </Select>
+              <EmpleadoBuscador
+                id={id}
+                value={elegido}
+                invalid={!!errors.empleadoId}
+                onChange={(e) => {
+                  setElegido(e);
+                  setValue('empleadoId', e?.id ?? 0, { shouldValidate: !!e });
+                }}
+              />
             )}
           </Field>
         )}

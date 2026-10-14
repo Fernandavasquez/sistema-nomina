@@ -1,12 +1,14 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
-import { Button, Field, Input, Modal, ModalFooter, Select, Textarea } from '@/components/ui';
-import { api, qs } from '@/lib/api';
+import { EmpleadoBuscador } from '@/components/forms/empleado-buscador';
+import { Button, Field, Input, Modal, ModalFooter, Textarea } from '@/components/ui';
+import { api } from '@/lib/api';
 import { money, nombreCompleto, today } from '@/lib/format';
 import type { Adelanto, Empleado } from '@/lib/types';
 
@@ -37,21 +39,18 @@ function AdelantoForm({ open, onClose, empleado, adelanto }: Props) {
   const queryClient = useQueryClient();
   const editando = !!adelanto;
 
-  const empleados = useQuery({
-    queryKey: ['empleados', { estado: 'ACTIVO' }],
-    queryFn: () => api.get<Empleado[]>(`/empleados${qs({ estado: 'ACTIVO' })}`),
-    enabled: open && !empleado && !editando,
-  });
+  // Empleado elegido en el buscador (cuando no viene fijo desde la ficha del empleado).
+  const [elegido, setElegido] = useState<Empleado | null>(null);
 
   const {
     register,
     handleSubmit,
-    watch,
+    setValue,
     reset,
     formState: { errors },
   } = useForm<FormData>({
     resolver: zodResolver(schema),
-    values: {
+    defaultValues: {
       empleadoId: adelanto?.empleadoId ?? empleado?.id ?? 0,
       monto: adelanto?.monto ?? (undefined as unknown as number),
       fechaSolicitud: adelanto?.fechaSolicitud ?? today(),
@@ -59,7 +58,7 @@ function AdelantoForm({ open, onClose, empleado, adelanto }: Props) {
     },
   });
 
-  const seleccionado = empleado ?? adelanto?.empleado ?? empleados.data?.find((e) => e.id === watch('empleadoId'));
+  const seleccionado = empleado ?? adelanto?.empleado ?? elegido;
 
   const guardar = useMutation({
     mutationFn: (data: FormData) =>
@@ -95,14 +94,15 @@ function AdelantoForm({ open, onClose, empleado, adelanto }: Props) {
         ) : (
           <Field label="Empleado" error={errors.empleadoId?.message}>
             {(id) => (
-              <Select id={id} invalid={!!errors.empleadoId} {...register('empleadoId', { valueAsNumber: true })}>
-                <option value={0}>{empleados.isLoading ? 'Cargando…' : 'Seleccione…'}</option>
-                {empleados.data?.map((e) => (
-                  <option key={e.id} value={e.id}>
-                    {e.apellidos}, {e.nombres}
-                  </option>
-                ))}
-              </Select>
+              <EmpleadoBuscador
+                id={id}
+                value={elegido}
+                invalid={!!errors.empleadoId}
+                onChange={(e) => {
+                  setElegido(e);
+                  setValue('empleadoId', e?.id ?? 0, { shouldValidate: !!e });
+                }}
+              />
             )}
           </Field>
         )}
