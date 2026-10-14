@@ -77,9 +77,31 @@ Menú lateral con todas las secciones; en el celular se abre con el botón ☰.
 | **Boleta de pago** | Detalle de percepciones y deducciones, lista para imprimir con espacio para firma. |
 | **Puestos** | Los cargos reales de la empresa (Piloto, Ayudante...) con cuántos empleados tiene cada uno. También se pueden crear desde el formulario de empleado con el botón **+**. |
 | **Conceptos de pago** | Tipos de bonos y descuentos manuales. |
+| **Reportes** *(solo ADMIN)* | Vista previa y descarga en **Excel** y **PDF** (ver abajo). |
 | **Usuarios** *(solo ADMIN)* | Crear, editar y desactivar usuarios. |
 
 **Seguridad:** el token JWT se guarda en una **cookie httpOnly**, que el JavaScript del navegador no puede leer. Por eso no lo puede robar un script malicioso (XSS). El navegador nunca llama directo a la API: pasa por `/api/backend/*` de Next.js, que agrega el token. Además, `src/proxy.ts` manda al login a quien no tiene sesión.
+
+**Cierre por inactividad (1 hora):**
+
+- **Navegador:** a los 58 minutos sin mover el mouse, escribir ni tocar la pantalla aparece el aviso "¿Sigue ahí?" con cuenta regresiva. A los 60 minutos se cierra la sesión y el login explica el motivo. La actividad se comparte entre todas las pestañas abiertas.
+- **Servidor:** la cookie vence a la hora sin uso y se renueva con cada acción. Aunque se manipule la página, el acceso se corta igual.
+- **Límite absoluto:** el JWT dura como máximo 8 horas, aunque la persona siga activa.
+- El tiempo se cambia en `frontend/src/lib/sesion.ts`.
+
+## Reportes
+
+Solo para el administrador, en **Menú → Pagos → Reportes**. Todos se pueden ver en pantalla y descargar en **Excel** (con filtros por columna) o **PDF** (con encabezado, totales y número de página).
+
+| Reporte | Filtros | Para qué sirve |
+|---|---|---|
+| **Planilla del período** | Período | Lo que se paga a cada empleado: sueldo, bonos, adelantos, préstamos y líquido, más **depósitos por banco** para las transferencias. También se descarga desde la página de cada período. |
+| **Pagos por fechas** | Desde / hasta (atajos: este mes, mes anterior, este año) | Total pagado a cada empleado en el rango, solo de pagos confirmados. Para contabilidad. |
+| **Adelantos** | Fechas y estado | Adelantos entregados, pendientes o ya descontados. |
+| **Cartera de préstamos** | Estado | Prestado, pagado, saldo y cuotas restantes de cada préstamo. |
+| **Listado de empleados** | Estado | Datos, puesto, salario, forma de pago y cuenta bancaria. |
+
+Todos los reportes usan la misma estructura (`backend/src/reportes/reporte.types.ts`), y un mismo código los convierte a Excel (`exceljs`) o a PDF (`pdfkit`). Para agregar un reporte nuevo solo hay que escribir el método que arma los datos.
 
 ---
 
@@ -160,6 +182,7 @@ El diseño original se respetó (mismas tablas y relaciones). Estas son las mejo
 | **Cerrar período (confirmar pago)** | ✅ | ❌ |
 | Eliminar empleados | ✅ | ❌ |
 | Puestos y conceptos de pago | ✅ | solo ver |
+| Reportes | ✅ | ❌ |
 | Usuarios y roles | ✅ | ❌ |
 
 ---
@@ -180,6 +203,7 @@ Todos bajo `/api` y con `Authorization: Bearer <token>` (excepto el login). La l
 | Períodos | `GET/POST /periodos-nomina` · `GET /periodos-nomina/sugerencia` · `GET/PATCH/DELETE /periodos-nomina/:id` · `POST /periodos-nomina/:id/procesar` · `/revertir` · `/cerrar` |
 | Nóminas | `GET /nominas` · `GET /nominas/:id` (boleta) · `POST /nominas/:id/detalles` · `DELETE /nominas/:id/detalles/:detalleId` |
 | Dashboard | `GET /dashboard/resumen` |
+| Reportes *(ADMIN)* | `GET /reportes/planilla/:periodoId` · `/reportes/pagos` · `/reportes/adelantos` · `/reportes/prestamos` · `/reportes/empleados` — todos con `?formato=json|xlsx|pdf` |
 
 ---
 

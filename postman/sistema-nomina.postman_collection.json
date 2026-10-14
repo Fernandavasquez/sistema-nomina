@@ -66,6 +66,14 @@
     {
       "key": "usuarioId",
       "value": ""
+    },
+    {
+      "key": "tokenOperador",
+      "value": ""
+    },
+    {
+      "key": "periodoCerradoId",
+      "value": ""
     }
   ],
   "item": [
@@ -615,7 +623,9 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('Status 200', () => pm.response.to.have.status(200));",
-                  "pm.test('Estado CERRADO', () => pm.expect(pm.response.json().estado).to.eql('CERRADO'));"
+                  "pm.test('Estado CERRADO', () => pm.expect(pm.response.json().estado).to.eql('CERRADO'));",
+                  "// Los reportes usan este período pagado.",
+                  "pm.collectionVariables.set('periodoCerradoId', pm.collectionVariables.get('periodoId'));"
                 ]
               }
             }
@@ -2682,6 +2692,409 @@
             }
           },
           "event": []
+        }
+      ]
+    },
+    {
+      "name": "Reportes (solo ADMIN)",
+      "description": "Cada reporte acepta ?formato=json (vista previa), xlsx (Excel) o pdf. Ejecute antes el \"Flujo completo\" para tener un período cerrado.",
+      "item": [
+        {
+          "name": "Planilla del período (JSON)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/reportes/planilla/{{periodoCerradoId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reportes",
+                "planilla",
+                "{{periodoCerradoId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const r = pm.response.json();",
+                  "pm.test('Tiene columnas y filas', () => { pm.expect(r.columnas).to.be.an('array'); pm.expect(r.filas).to.be.an('array'); });",
+                  "pm.test('Incluye depósitos por banco', () => pm.expect(r.anexos[0].titulo).to.eql('Depósitos por banco'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Planilla del período (Excel)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/reportes/planilla/{{periodoCerradoId}}?formato=xlsx",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reportes",
+                "planilla",
+                "{{periodoCerradoId}}"
+              ],
+              "query": [
+                {
+                  "key": "formato",
+                  "value": "xlsx"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Es un Excel', () => pm.expect(pm.response.headers.get('Content-Type')).to.include('spreadsheetml'));",
+                  "pm.test('Se descarga con nombre', () => pm.expect(pm.response.headers.get('Content-Disposition')).to.match(/attachment; filename=\"planilla-.+\\.xlsx\"/));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Planilla del período (PDF)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/reportes/planilla/{{periodoCerradoId}}?formato=pdf",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reportes",
+                "planilla",
+                "{{periodoCerradoId}}"
+              ],
+              "query": [
+                {
+                  "key": "formato",
+                  "value": "pdf"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Es un PDF', () => pm.expect(pm.response.headers.get('Content-Type')).to.include('application/pdf'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Pagos por fechas (este año)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/reportes/pagos?desde=2026-01-01&hasta=2026-12-31",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reportes",
+                "pagos"
+              ],
+              "query": [
+                {
+                  "key": "desde",
+                  "value": "2026-01-01"
+                },
+                {
+                  "key": "hasta",
+                  "value": "2026-12-31"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Título correcto', () => pm.expect(pm.response.json().titulo).to.eql('Pagos por empleado'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Adelantos pendientes",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/reportes/adelantos?estado=PENDIENTE",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reportes",
+                "adelantos"
+              ],
+              "query": [
+                {
+                  "key": "estado",
+                  "value": "PENDIENTE"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cartera de préstamos activos (PDF)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/reportes/prestamos?estado=ACTIVO&formato=pdf",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reportes",
+                "prestamos"
+              ],
+              "query": [
+                {
+                  "key": "estado",
+                  "value": "ACTIVO"
+                },
+                {
+                  "key": "formato",
+                  "value": "pdf"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Es un PDF', () => pm.expect(pm.response.headers.get('Content-Type')).to.include('application/pdf'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Listado de empleados activos (Excel)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/reportes/empleados?estado=ACTIVO&formato=xlsx",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reportes",
+                "empleados"
+              ],
+              "query": [
+                {
+                  "key": "estado",
+                  "value": "ACTIVO"
+                },
+                {
+                  "key": "formato",
+                  "value": "xlsx"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Validación: formato inválido",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/reportes/prestamos?formato=doc",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reportes",
+                "prestamos"
+              ],
+              "query": [
+                {
+                  "key": "formato",
+                  "value": "doc"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Validación: rango de fechas al revés",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/reportes/pagos?desde=2026-12-31&hasta=2026-01-01",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reportes",
+                "pagos"
+              ],
+              "query": [
+                {
+                  "key": "desde",
+                  "value": "2026-12-31"
+                },
+                {
+                  "key": "hasta",
+                  "value": "2026-01-01"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Seguridad: un OPERADOR no puede ver reportes",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/reportes/empleados",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reportes",
+                "empleados"
+              ]
+            },
+            "description": "Crea un operador temporal, inicia sesión con él, pide el reporte (debe dar 403) y luego lo elimina.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenOperador}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const base = pm.variables.replaceIn('{{baseUrl}}');",
+                  "const admin = { Authorization: 'Bearer ' + pm.collectionVariables.get('token') };",
+                  "const sufijo = Date.now().toString().slice(-6);",
+                  "pm.sendRequest({ url: base + '/api/usuarios', method: 'POST', header: { ...admin, 'Content-Type': 'application/json' },",
+                  "  body: { mode: 'raw', raw: JSON.stringify({ nombre: 'Op', apellido: 'Temporal', username: 'optmp' + sufijo, email: 'optmp' + sufijo + '@empresa.com', password: 'Operador123!', rolId: 2 }) } },",
+                  "  (e, res) => {",
+                  "    pm.collectionVariables.set('usuarioId', res.json().id);",
+                  "    pm.sendRequest({ url: base + '/api/auth/login', method: 'POST', header: { 'Content-Type': 'application/json' },",
+                  "      body: { mode: 'raw', raw: JSON.stringify({ usuario: 'optmp' + sufijo, password: 'Operador123!' }) } },",
+                  "      (e2, res2) => pm.collectionVariables.set('tokenOperador', res2.json().accessToken));",
+                  "  });"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 403', () => pm.response.to.have.status(403));",
+                  "pm.sendRequest({ url: pm.variables.replaceIn('{{baseUrl}}/api/usuarios/{{usuarioId}}'), method: 'DELETE',",
+                  "  header: { Authorization: 'Bearer ' + pm.collectionVariables.get('token') } });"
+                ]
+              }
+            }
+          ]
         }
       ]
     },

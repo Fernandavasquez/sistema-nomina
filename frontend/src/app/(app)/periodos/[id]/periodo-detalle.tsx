@@ -22,6 +22,7 @@ import {
   Td,
   Th,
 } from '@/components/ui';
+import { BotonesDescarga } from '@/components/botones-descarga';
 import { useSesion } from '@/hooks/queries';
 import { api } from '@/lib/api';
 import { date, money, nombrePeriodo } from '@/lib/format';
@@ -82,6 +83,8 @@ export function PeriodoDetalle() {
         }
         actions={
           <>
+            {/* Descarga de la planilla (solo administrador, cuando ya hay nóminas calculadas) */}
+            {esAdmin && p.estado !== 'ABIERTO' && <BotonesDescarga ruta={`/reportes/planilla/${p.id}`} />}
             {p.estado === 'ABIERTO' && (
               <>
                 <Button variant="ghost" className="text-red-600 hover:bg-red-50" onClick={() => setConfirmar('eliminar')}>

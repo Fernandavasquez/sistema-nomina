@@ -16,6 +16,12 @@ export function proxy(request: NextRequest) {
     if (pathname !== '/') url.searchParams.set('next', pathname + search);
     return NextResponse.redirect(url);
   }
+  // Cierre por inactividad: se borra la cookie aunque una petición en curso la haya renovado.
+  if (esLogin && request.nextUrl.searchParams.get('motivo') === 'inactividad') {
+    const res = NextResponse.next();
+    res.cookies.delete(TOKEN_COOKIE);
+    return res;
+  }
   if (logueado && esLogin) return NextResponse.redirect(new URL('/', request.url));
   return NextResponse.next();
 }

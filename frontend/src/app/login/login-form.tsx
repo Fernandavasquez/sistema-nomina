@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { Alert, Button, Field, Input } from '@/components/ui';
+import { MINUTOS_INACTIVIDAD } from '@/lib/sesion';
 
 const schema = z.object({
   usuario: z.string().trim().min(1, 'Ingrese su usuario o correo'),
@@ -45,6 +46,9 @@ export function LoginForm() {
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="mt-8 space-y-5" noValidate>
+      {params.get('motivo') === 'inactividad' && !error && (
+        <Alert color="amber">Su sesión se cerró después de {MINUTOS_INACTIVIDAD} minutos sin actividad. Ingrese de nuevo.</Alert>
+      )}
       {error && <Alert color="red">{error}</Alert>}
       <Field label="Usuario o correo" error={errors.usuario?.message}>
         {(id) => <Input id={id} autoComplete="username" autoFocus invalid={!!errors.usuario} {...register('usuario')} />}

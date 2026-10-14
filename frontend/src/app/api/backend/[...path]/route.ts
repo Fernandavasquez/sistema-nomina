@@ -1,5 +1,6 @@
+import { cookies } from 'next/headers';
 import type { NextRequest } from 'next/server';
-import { BACKEND_URL, forwardedFor, TOKEN_COOKIE } from '@/lib/server-config';
+import { BACKEND_URL, cookieOptions, forwardedFor, TOKEN_COOKIE } from '@/lib/server-config';
 
 /**
  * Proxy hacia la API de NestJS ("Backend for Frontend").
@@ -29,6 +30,11 @@ async function handler(request: NextRequest, ctx: RouteContext<'/api/backend/[..
   } catch {
     return Response.json({ statusCode: 503, message: 'No se pudo conectar con el servidor' }, { status: 503 });
   }
+
+  // Cada petición con sesión válida renueva el plazo de 1 hora; un 401 la borra.
+  const jar = await cookies();
+  if (res.status === 401) jar.delete(TOKEN_COOKIE);
+  else jar.set(TOKEN_COOKIE, token, cookieOptions);
 
   const responseHeaders = new Headers();
   for (const name of ['content-type', 'content-disposition', 'content-length']) {

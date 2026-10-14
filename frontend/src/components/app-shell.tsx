@@ -5,6 +5,7 @@ import {
   Banknote,
   Briefcase,
   CalendarRange,
+  FileBarChart,
   HandCoins,
   KeyRound,
   LayoutDashboard,
@@ -18,6 +19,7 @@ import {
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Suspense, useState, type ReactNode } from 'react';
+import { ControlInactividad } from '@/components/control-inactividad';
 import { Spinner } from '@/components/ui';
 import { useSesion } from '@/hooks/queries';
 import { useHidratado } from '@/hooks/use-hidratado';
@@ -45,7 +47,10 @@ const NAV: { titulo: string; items: NavItem[] }[] = [
   },
   {
     titulo: 'Pagos',
-    items: [{ href: '/periodos', label: 'Períodos y nóminas', icon: CalendarRange }],
+    items: [
+      { href: '/periodos', label: 'Períodos y nóminas', icon: CalendarRange },
+      { href: '/reportes', label: 'Reportes', icon: FileBarChart, soloAdmin: true },
+    ],
   },
   {
     titulo: 'Administración',
@@ -110,6 +115,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
         <ContenidoCliente>{children}</ContenidoCliente>
       </main>
+      <ControlInactividad />
     </div>
   );
 }

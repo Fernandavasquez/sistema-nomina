@@ -166,3 +166,28 @@ export interface DashboardResumen {
     totalPagado: number;
   }[];
 }
+
+// ───────────── Reportes (misma estructura que backend/src/reportes/reporte.types.ts) ─────────────
+
+export interface ReporteColumna {
+  clave: string;
+  titulo: string;
+  tipo?: 'texto' | 'dinero' | 'fecha' | 'numero';
+  ancho?: number;
+}
+
+export interface ReporteTabla {
+  titulo?: string;
+  columnas: ReporteColumna[];
+  filas: Record<string, string | number | null>[];
+  totales?: Record<string, number>;
+}
+
+export interface Reporte extends ReporteTabla {
+  titulo: string;
+  subtitulo?: string;
+  resumen?: { etiqueta: string; valor: string }[];
+  anexos?: ReporteTabla[];
+  nombreArchivo: string;
+  generado: string;
+}

@@ -19,6 +19,7 @@ import { NominasModule } from './nominas/nominas.module.js';
 import { PeriodosNominaModule } from './periodos-nomina/periodos-nomina.module.js';
 import { PrestamosModule } from './prestamos/prestamos.module.js';
 import { PuestosModule } from './puestos/puestos.module.js';
+import { ReportesModule } from './reportes/reportes.module.js';
 import { RolesModule } from './roles/roles.module.js';
 import { UsuariosModule } from './usuarios/usuarios.module.js';
 
@@ -45,6 +46,7 @@ import { UsuariosModule } from './usuarios/usuarios.module.js';
     PeriodosNominaModule,
     NominasModule,
     DashboardModule,
+    ReportesModule,
   ],
   controllers: [AppController],
   providers: [

@@ -1,4 +1,5 @@
 import 'server-only';
+import { MINUTOS_INACTIVIDAD } from '@/lib/sesion';
 
 /** URL del backend NestJS vista desde el servidor de Next.js (en Docker: http://backend:3000). */
 export const BACKEND_URL = process.env.BACKEND_URL ?? 'http://localhost:3000';
@@ -12,7 +13,9 @@ export const cookieOptions = {
   // En producción con HTTPS ponga COOKIE_SECURE=true para que la cookie solo viaje cifrada.
   secure: process.env.COOKIE_SECURE === 'true',
   path: '/',
-  maxAge: 60 * 60 * 8, // 8 horas, igual que la duración del JWT
+  // La cookie vence tras 1 hora sin uso; cada petición la renueva (ver api/backend y api/auth/renovar).
+  // El JWT además tiene una duración máxima absoluta de 8 horas.
+  maxAge: MINUTOS_INACTIVIDAD * 60,
 };
 
 /** Reenvía la IP real del usuario al backend (para el límite de intentos de login). */
