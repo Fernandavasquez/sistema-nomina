@@ -26,11 +26,15 @@ export enum EstadoPeriodo {
   PROCESADO = 'PROCESADO',
   /** Pagado. Adelantos marcados como aplicados y saldos de préstamos rebajados. No editable. */
   CERRADO = 'CERRADO',
+  /** Pago anulado por un administrador: se devolvieron adelantos y saldos. Queda solo como historial. */
+  ANULADO = 'ANULADO',
 }
 
 export enum EstadoNomina {
   GENERADA = 'GENERADA',
   PAGADA = 'PAGADA',
+  /** Boleta anulada (sola o junto con su período). Queda solo como historial. */
+  ANULADA = 'ANULADA',
 }
 
 export enum TipoConcepto {

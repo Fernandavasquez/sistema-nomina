@@ -46,7 +46,7 @@ export class DashboardService {
         .getRepository(PeriodoNomina)
         .createQueryBuilder('p')
         .innerJoin('p.frecuenciaPago', 'f')
-        .leftJoin('nominas_encabezado', 'n', 'n.periodo_id = p.id')
+        .leftJoin('nominas_encabezado', 'n', "n.periodo_id = p.id AND n.estado = 'PAGADA'")
         .select(['p.id AS id', 'p.anio AS anio', 'p.numeroPeriodo AS "numeroPeriodo"', 'p.fechaPago AS "fechaPago"'])
         .addSelect('f.nombre', 'frecuencia')
         .addSelect('COUNT(n.id)::int', 'empleados')

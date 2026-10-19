@@ -127,7 +127,13 @@ function ReporteSeleccionado({ tipo }: { tipo: TipoReporte }) {
                   {periodos.data?.map((p) => (
                     <option key={p.id} value={p.id}>
                       {nombrePeriodo(p)} · {date(p.fechaInicio)} – {date(p.fechaFin)} ·{' '}
-                      {p.estado === 'CERRADO' ? 'Pagado' : p.estado === 'PROCESADO' ? 'En revisión' : 'Abierto'}
+                      {p.estado === 'CERRADO'
+                        ? 'Pagado'
+                        : p.estado === 'PROCESADO'
+                          ? 'En revisión'
+                          : p.estado === 'ANULADO'
+                            ? 'Anulado'
+                            : 'Abierto'}
                     </option>
                   ))}
                 </Select>

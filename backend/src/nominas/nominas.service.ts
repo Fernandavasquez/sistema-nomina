@@ -32,7 +32,7 @@ export class NominasService {
   async findOne(id: number) {
     const nomina = await this.nominas.findOne({
       where: { id },
-      relations: { empleado: true, periodo: true, detalles: true },
+      relations: { empleado: true, periodo: true, detalles: true, anuladoPor: true },
     });
     if (!nomina) throw new NotFoundException(`Nómina ${id} no encontrada`);
     // Percepciones primero, luego deducciones.
@@ -74,8 +74,10 @@ export class NominasService {
 
   private async assertEditable(id: number) {
     const nomina = await this.findOne(id);
-    if (nomina.estado !== EstadoNomina.GENERADA || nomina.periodo.estado !== EstadoPeriodo.PROCESADO) {
-      throw new ConflictException('Solo se pueden modificar nóminas de un período PROCESADO (no cerrado)');
+    // Editable: boletas en revisión, o boletas nuevas emitidas en un período ya pagado (antes de confirmarlas).
+    const periodoEditable = [EstadoPeriodo.PROCESADO, EstadoPeriodo.CERRADO].includes(nomina.periodo.estado);
+    if (nomina.estado !== EstadoNomina.GENERADA || !periodoEditable) {
+      throw new ConflictException('Solo se pueden modificar boletas en revisión o boletas nuevas sin confirmar');
     }
     return nomina;
   }

@@ -140,7 +140,9 @@ export function PrestamoDetalle() {
                     </Td>
                     <Td>{date(a.periodo.fechaPago)}</Td>
                     <Td className="tabular text-right font-medium">{money(a.monto)}</Td>
-                    <Td>{a.estadoNomina === 'PAGADA' ? <EstadoBadge estado="PAGADA" /> : <EstadoBadge estado="GENERADA" />}</Td>
+                    <Td>
+                      <EstadoBadge estado={a.estadoNomina} />
+                    </Td>
                   </tr>
                 ))}
               </tbody>

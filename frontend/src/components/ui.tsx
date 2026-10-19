@@ -219,6 +219,8 @@ const estadoColor: Record<string, keyof typeof badgeColors> = {
   ABIERTO: 'amber',
   PROCESADO: 'blue',
   CERRADO: 'green',
+  ANULADO: 'red',
+  ANULADA: 'red',
   GENERADA: 'amber',
   PAGADA: 'green',
   PERCEPCION: 'green',

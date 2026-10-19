@@ -81,6 +81,7 @@ export default function PeriodosPage() {
             <option value="ABIERTO">Abiertos</option>
             <option value="PROCESADO">En revisión (procesados)</option>
             <option value="CERRADO">Cerrados (pagados)</option>
+            <option value="ANULADO">Anulados</option>
           </Select>
         </div>
         {isLoading ? (

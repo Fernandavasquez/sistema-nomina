@@ -1,7 +1,7 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Calculator, CheckCircle2, RotateCcw, Trash2 } from 'lucide-react';
+import { Ban, Calculator, CheckCircle2, FilePlus2, RotateCcw, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useState } from 'react';
@@ -23,12 +23,13 @@ import {
   Th,
 } from '@/components/ui';
 import { BotonesDescarga } from '@/components/botones-descarga';
+import { AnularModal, AvisoAnulacion } from '@/components/forms/anular-modal';
 import { useSesion } from '@/hooks/queries';
 import { api } from '@/lib/api';
 import { date, money, nombrePeriodo } from '@/lib/format';
-import type { PeriodoDetalle } from '@/lib/types';
+import type { Nomina, PeriodoDetalle } from '@/lib/types';
 
-type Accion = 'procesar' | 'revertir' | 'cerrar' | 'eliminar';
+type Accion = 'procesar' | 'revertir' | 'cerrar' | 'eliminar' | 'anular';
 
 export function PeriodoDetalle() {
   const { id } = useParams<{ id: string }>();
@@ -48,14 +49,17 @@ export function PeriodoDetalle() {
   });
 
   const accion = useMutation({
-    mutationFn: (a: Accion) =>
-      a === 'eliminar' ? api.delete(`/periodos-nomina/${id}`) : api.post<PeriodoDetalle>(`/periodos-nomina/${id}/${a}`),
-    onSuccess: (_r, a) => {
+    mutationFn: ({ a, motivo }: { a: Accion; motivo?: string }) =>
+      a === 'eliminar'
+        ? api.delete(`/periodos-nomina/${id}`)
+        : api.post<PeriodoDetalle>(`/periodos-nomina/${id}/${a}`, motivo ? { motivo } : undefined),
+    onSuccess: (_r, { a }) => {
       const mensajes: Record<Accion, string> = {
         procesar: 'Nómina calculada',
         revertir: 'Procesamiento revertido',
         cerrar: 'Pago confirmado. Adelantos y préstamos actualizados.',
         eliminar: 'Período eliminado',
+        anular: 'Período anulado. Adelantos y préstamos volvieron a como estaban antes del pago.',
       };
       toast.success(mensajes[a]);
       // Cerrar un período cambia adelantos, préstamos y el dashboard: se refresca todo.
@@ -65,11 +69,24 @@ export function PeriodoDetalle() {
     onSettled: () => setConfirmar(null),
   });
 
+  // Emite una boleta nueva para un empleado cuya boleta se anuló en este período.
+  const reemitir = useMutation({
+    mutationFn: (empleadoId: number) => api.post<{ nominaId: number }>(`/periodos-nomina/${id}/reemitir/${empleadoId}`),
+    onSuccess: ({ nominaId }) => {
+      toast.success('Boleta nueva generada. Revísela y confirme el pago.');
+      queryClient.invalidateQueries();
+      router.push(`/nominas/${nominaId}`);
+    },
+  });
+
   if (isLoading) return <Spinner />;
   if (error) return <ErrorState error={error} onRetry={refetch} />;
   if (!p) return null;
 
   const { resumen } = p;
+  // Boleta anulada de un empleado que aún no tiene una boleta nueva en este período.
+  const sinBoletaVigente = (n: Nomina) =>
+    n.estado === 'ANULADA' && !p.nominas.some((o) => o.empleadoId === n.empleadoId && o.estado !== 'ANULADA');
 
   return (
     <>
@@ -85,6 +102,11 @@ export function PeriodoDetalle() {
           <>
             {/* Descarga de la planilla (solo administrador, cuando ya hay nóminas calculadas) */}
             {esAdmin && p.estado !== 'ABIERTO' && <BotonesDescarga ruta={`/reportes/planilla/${p.id}`} />}
+            {esAdmin && p.estado === 'CERRADO' && (
+              <Button variant="ghost" className="text-red-600 hover:bg-red-50" onClick={() => setConfirmar('anular')}>
+                <Ban className="size-4" /> Anular período
+              </Button>
+            )}
             {p.estado === 'ABIERTO' && (
               <>
                 <Button variant="ghost" className="text-red-600 hover:bg-red-50" onClick={() => setConfirmar('eliminar')}>
@@ -114,6 +136,15 @@ export function PeriodoDetalle() {
         }
       />
 
+      {p.estado === 'ANULADO' && <AvisoAnulacion texto="Este período fue anulado" anulacion={p} />}
+      {resumen.boletasPorConfirmar > 0 && (
+        <div className="mb-3">
+          <Alert color="amber">
+            Hay {resumen.boletasPorConfirmar} boleta(s) nueva(s) pendiente(s) de confirmar. Ábrala para revisarla y
+            {esAdmin ? ' confirmar el pago.' : ' pida a un administrador que confirme el pago.'}
+          </Alert>
+        </div>
+      )}
       {p.estado === 'ABIERTO' && (
         <Alert color="amber">
           Este período está abierto. Registre los adelantos y préstamos que correspondan y luego presione{' '}
@@ -137,7 +168,11 @@ export function PeriodoDetalle() {
 
       {p.estado !== 'ABIERTO' && (
         <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <Stat label="Empleados" value={resumen.empleados} />
+          <Stat
+            label="Empleados"
+            value={resumen.empleados}
+            hint={resumen.boletasAnuladas ? `${resumen.boletasAnuladas} boleta(s) anulada(s)` : undefined}
+          />
           <Stat label="Percepciones" value={money(resumen.totalPercepciones)} />
           <Stat label="Deducciones" value={money(resumen.totalDeducciones)} />
           <Stat label="Total a pagar" value={money(resumen.totalLiquido)} />
@@ -164,26 +199,49 @@ export function PeriodoDetalle() {
               </tr>
             </thead>
             <tbody>
-              {p.nominas.map((n) => (
-                <tr key={n.id} className="hover:bg-slate-50">
-                  <Td className="font-medium text-slate-900">
-                    {n.empleado?.apellidos}, {n.empleado?.nombres}
-                  </Td>
-                  <Td className="text-slate-600">
-                    {n.empleado?.bancoDestino ? `${n.empleado.bancoDestino} · ${n.empleado.numeroCuenta ?? ''}` : 'Efectivo'}
-                  </Td>
-                  <Td className="tabular text-right">{money(n.totalPercepciones)}</Td>
-                  <Td className="tabular text-right text-red-700">{money(n.totalDeducciones)}</Td>
-                  <Td className={`tabular text-right font-semibold ${n.liquidoRecibir < 0 ? 'text-red-600' : 'text-slate-900'}`}>
-                    {money(n.liquidoRecibir)}
-                  </Td>
-                  <Td className="text-right">
-                    <Link href={`/nominas/${n.id}`} className="text-sm font-medium text-emerald-700 hover:underline">
-                      Ver boleta
-                    </Link>
-                  </Td>
-                </tr>
-              ))}
+              {p.nominas.map((n) => {
+                const anulada = n.estado === 'ANULADA';
+                return (
+                  <tr key={n.id} className={anulada ? 'bg-red-50/40 text-slate-400' : 'hover:bg-slate-50'}>
+                    <Td className={anulada ? '' : 'font-medium text-slate-900'}>
+                      <span className="flex flex-wrap items-center gap-2">
+                        {n.empleado?.apellidos}, {n.empleado?.nombres}
+                        {anulada && <EstadoBadge estado="ANULADA" />}
+                        {n.estado === 'GENERADA' && p.estado === 'CERRADO' && <EstadoBadge estado="GENERADA" />}
+                      </span>
+                    </Td>
+                    <Td className="text-slate-600">
+                      {n.empleado?.bancoDestino ? `${n.empleado.bancoDestino} · ${n.empleado.numeroCuenta ?? ''}` : 'Efectivo'}
+                    </Td>
+                    <Td className={`tabular text-right ${anulada ? 'line-through' : ''}`}>{money(n.totalPercepciones)}</Td>
+                    <Td className={`tabular text-right ${anulada ? 'line-through' : 'text-red-700'}`}>
+                      {money(n.totalDeducciones)}
+                    </Td>
+                    <Td
+                      className={`tabular text-right font-semibold ${anulada ? 'line-through' : n.liquidoRecibir < 0 ? 'text-red-600' : 'text-slate-900'}`}
+                    >
+                      {money(n.liquidoRecibir)}
+                    </Td>
+                    <Td className="text-right whitespace-nowrap">
+                      <span className="flex items-center justify-end gap-3">
+                        {p.estado === 'CERRADO' && sinBoletaVigente(n) && (
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => reemitir.mutate(n.empleadoId)}
+                            loading={reemitir.isPending && reemitir.variables === n.empleadoId}
+                          >
+                            <FilePlus2 className="size-4" /> Boleta nueva
+                          </Button>
+                        )}
+                        <Link href={`/nominas/${n.id}`} className="text-sm font-medium text-emerald-700 hover:underline">
+                          Ver boleta
+                        </Link>
+                      </span>
+                    </Td>
+                  </tr>
+                );
+              })}
             </tbody>
             <tfoot>
               <tr className="bg-slate-50 font-semibold">
@@ -202,7 +260,7 @@ export function PeriodoDetalle() {
       <ConfirmDialog
         open={confirmar === 'procesar'}
         onClose={() => setConfirmar(null)}
-        onConfirm={() => accion.mutate('procesar')}
+        onConfirm={() => accion.mutate({ a: 'procesar' })}
         loading={accion.isPending}
         title={p.estado === 'PROCESADO' ? 'Recalcular nómina' : 'Calcular nómina'}
         confirmText="Calcular"
@@ -218,7 +276,7 @@ export function PeriodoDetalle() {
       <ConfirmDialog
         open={confirmar === 'revertir'}
         onClose={() => setConfirmar(null)}
-        onConfirm={() => accion.mutate('revertir')}
+        onConfirm={() => accion.mutate({ a: 'revertir' })}
         loading={accion.isPending}
         title="Revertir procesamiento"
         confirmText="Revertir"
@@ -229,22 +287,38 @@ export function PeriodoDetalle() {
       <ConfirmDialog
         open={confirmar === 'cerrar'}
         onClose={() => setConfirmar(null)}
-        onConfirm={() => accion.mutate('cerrar')}
+        onConfirm={() => accion.mutate({ a: 'cerrar' })}
         loading={accion.isPending}
         title="Cerrar período y confirmar pago"
         confirmText={`Confirmar pago de ${money(resumen.totalLiquido)}`}
       >
-        <p>Esta acción no se puede deshacer:</p>
+        <p>Al confirmar:</p>
         <ul className="list-disc space-y-1 pl-5">
           <li>Los adelantos incluidos quedarán como descontados.</li>
           <li>Se rebajará el saldo de los préstamos.</li>
           <li>Las boletas quedarán como pagadas y no se podrán modificar.</li>
+          <li>Si hubo un error, un administrador podrá anular el pago después.</li>
         </ul>
       </ConfirmDialog>
+      <AnularModal
+        open={confirmar === 'anular'}
+        onClose={() => setConfirmar(null)}
+        onConfirmar={(motivo) => accion.mutate({ a: 'anular', motivo })}
+        loading={accion.isPending}
+        titulo={`Anular ${nombrePeriodo(p)}`}
+      >
+        <p>Se anulará el pago completo del período ({money(resumen.totalLiquido)}):</p>
+        <ul className="list-disc space-y-1 pl-5">
+          <li>Los adelantos descontados vuelven a quedar pendientes.</li>
+          <li>Los préstamos recuperan el saldo de las cuotas descontadas.</li>
+          <li>El período y sus boletas quedan como ANULADOS (no se borran).</li>
+          <li>Después puede crear un período nuevo con las mismas fechas y volver a calcular.</li>
+        </ul>
+      </AnularModal>
       <ConfirmDialog
         open={confirmar === 'eliminar'}
         onClose={() => setConfirmar(null)}
-        onConfirm={() => accion.mutate('eliminar')}
+        onConfirm={() => accion.mutate({ a: 'eliminar' })}
         loading={accion.isPending}
         title="Eliminar período"
         confirmText="Eliminar"

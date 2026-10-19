@@ -36,11 +36,14 @@ export class ReportesService {
     const periodo = await this.db.getRepository(PeriodoNomina).findOne({ where: { id: periodoId } });
     if (!periodo) throw new NotFoundException(`Período ${periodoId} no encontrado`);
 
-    const nominas = await this.db.getRepository(NominaEncabezado).find({
+    const todas = await this.db.getRepository(NominaEncabezado).find({
       where: { periodoId },
-      relations: { empleado: true, detalles: true },
+      relations: { empleado: true, detalles: true, anuladoPor: true },
       order: { empleado: { apellidos: 'ASC', nombres: 'ASC' } },
     });
+    // La planilla muestra solo las boletas vigentes; las anuladas van en un anexo como historial.
+    const nominas = todas.filter((n) => n.estado !== EstadoNomina.ANULADA);
+    const anuladas = todas.filter((n) => n.estado === EstadoNomina.ANULADA);
 
     const filas: Fila[] = nominas.map((n, i) => {
       const suma = (filtro: (d: NominaDetalle) => boolean) =>
@@ -96,6 +99,7 @@ export class ReportesService {
         { etiqueta: 'Total percepciones', valor: dinero(totales.sueldo + totales.bonos) },
         { etiqueta: 'Total descuentos', valor: dinero(totales.adelantos + totales.prestamos + totales.otros) },
         { etiqueta: 'Total a pagar', valor: dinero(totales.liquido) },
+        ...(anuladas.length ? [{ etiqueta: 'Boletas anuladas', valor: String(anuladas.length) }] : []),
       ],
       columnas,
       filas,
@@ -111,6 +115,27 @@ export class ReportesService {
           filas: filasBanco,
           totales: sumar(filasBanco, 'empleados', 'total'),
         },
+        ...(anuladas.length
+          ? [
+              {
+                titulo: 'Boletas anuladas',
+                columnas: [
+                  { clave: 'empleado', titulo: 'Empleado', ancho: 2.2 },
+                  { clave: 'liquido', titulo: 'Líquido anulado', tipo: 'dinero' as const },
+                  { clave: 'fecha', titulo: 'Anulada el', tipo: 'fecha' as const },
+                  { clave: 'usuario', titulo: 'Anulada por', ancho: 1.3 },
+                  { clave: 'motivo', titulo: 'Motivo', ancho: 3 },
+                ],
+                filas: anuladas.map((n) => ({
+                  empleado: nombre(n.empleado),
+                  liquido: n.liquidoRecibir,
+                  fecha: n.fechaAnulacion ? n.fechaAnulacion.toISOString().slice(0, 10) : null,
+                  usuario: n.anuladoPor ? `${n.anuladoPor.nombre} ${n.anuladoPor.apellido}` : '',
+                  motivo: n.motivoAnulacion ?? '',
+                })),
+              },
+            ]
+          : []),
       ],
       nombreArchivo: `planilla-${tipo.toLowerCase()}-${periodo.numeroPeriodo}-${periodo.anio}`,
       generado: new Date().toISOString(),

@@ -13,9 +13,19 @@ function reporteDePrueba(filas: number): Reporte {
       { clave: 'fecha', titulo: 'Fecha', tipo: 'fecha' },
       { clave: 'liquido', titulo: 'Líquido', tipo: 'dinero' },
     ],
-    filas: Array.from({ length: filas }, (_, i) => ({ empleado: `Muñoz Peña, José ${i + 1}`, fecha: '2026-10-07', liquido: 100.5 })),
+    filas: Array.from({ length: filas }, (_, i) => ({
+      empleado: `Muñoz Peña, José ${i + 1}`,
+      fecha: '2026-10-07',
+      liquido: 100.5,
+    })),
     totales: { liquido: 100.5 * filas },
-    anexos: [{ titulo: 'Depósitos por banco', columnas: [{ clave: 'banco', titulo: 'Banco' }], filas: [{ banco: 'Banrural' }] }],
+    anexos: [
+      {
+        titulo: 'Depósitos por banco',
+        columnas: [{ clave: 'banco', titulo: 'Banco' }],
+        filas: [{ banco: 'Banrural' }],
+      },
+    ],
     nombreArchivo: 'prueba',
     generado: '2026-10-14T16:00:00.000Z',
   };

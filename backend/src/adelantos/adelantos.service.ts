@@ -1,7 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { FindOptionsWhere, Repository } from 'typeorm';
-import { EstadoEmpleado } from '../common/enums.js';
+import { FindOptionsWhere, Not, Repository } from 'typeorm';
+import { EstadoEmpleado, EstadoNomina } from '../common/enums.js';
 import { today } from '../common/utils/dates.js';
 import { round2 } from '../common/utils/money.js';
 import { Empleado } from '../empleados/entities/empleado.entity.js';
@@ -57,6 +57,11 @@ export class AdelantosService {
 
   async remove(id: number) {
     const adelanto = await this.assertEditable(id);
+    if (await this.detalles.existsBy({ adelantoId: id })) {
+      throw new ConflictException(
+        'El adelanto aparece en una boleta anulada (historial) y no se puede eliminar; puede editarlo.',
+      );
+    }
     await this.adelantos.remove(adelanto);
     return { message: 'Adelanto eliminado' };
   }
@@ -82,7 +87,10 @@ export class AdelantosService {
     if (adelanto.aplicado) {
       throw new ConflictException('El adelanto ya fue descontado en una nómina cerrada y no se puede modificar');
     }
-    if (await this.detalles.existsBy({ adelantoId: id })) {
+    const enBoletaVigente = await this.detalles.exists({
+      where: { adelantoId: id, nomina: { estado: Not(EstadoNomina.ANULADA) } },
+    });
+    if (enBoletaVigente) {
       throw new ConflictException(
         'El adelanto está incluido en una nómina en proceso. Revierta el procesamiento del período para modificarlo.',
       );

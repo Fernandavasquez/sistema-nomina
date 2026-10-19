@@ -146,7 +146,7 @@ El diseño original se respetó (mismas tablas y relaciones). Estas son las mejo
 ## Cómo funciona el pago (flujo de nómina)
 
 ```
- ABIERTO ──(procesar)──▶ PROCESADO ──(cerrar)──▶ CERRADO
+ ABIERTO ──(procesar)──▶ PROCESADO ──(cerrar)──▶ CERRADO ──(anular)──▶ ANULADO
     ▲                        │
     └──────(revertir)────────┘
 ```
@@ -160,7 +160,22 @@ El diseño original se respetó (mismas tablas y relaciones). Estas son las mejo
    - **− Adelantos pendientes**: se descuenta cada adelanto completo.
    - **− Cuota de cada préstamo activo**: o el saldo, si es menor que la cuota.
 3. **Revisar**: en estado PROCESADO se pueden agregar bonos o descuentos manuales a cada nómina. Si se corrige un dato (por ejemplo un adelanto), se revierte y se vuelve a procesar; los bonos manuales se conservan.
-4. **Cerrar** (solo ADMIN): confirma el pago. Recién aquí los adelantos quedan como *aplicados* y se rebaja el saldo de los préstamos; un préstamo con saldo 0 pasa a *PAGADO*. Un período cerrado ya no se puede modificar.
+4. **Cerrar** (solo ADMIN): confirma el pago. Recién aquí los adelantos quedan como *aplicados* y se rebaja el saldo de los préstamos; un préstamo con saldo 0 pasa a *PAGADO*. Un período cerrado ya no se puede modificar, solo anular.
+
+### Anular un pago ya cerrado (solo ADMIN)
+
+Si un pago se cerró por error, se puede anular de dos formas. En ambas se pide un **motivo**, que queda guardado junto con el usuario y la fecha. **No se borra nada**: lo anulado queda como historial.
+
+| Qué se anula | Efecto | Cómo se corrige después |
+|---|---|---|
+| **Una boleta** (un empleado) | Sus adelantos vuelven a quedar pendientes y sus préstamos recuperan el saldo de la cuota. Los demás empleados no se modifican. | En la página del período, botón **Boleta nueva**: se calcula de nuevo, se pueden agregar bonos o descuentos, y luego se **confirma el pago** (o se descarta). |
+| **El período completo** | Lo mismo, para todas las boletas del período. | Crear un período nuevo con las mismas fechas (reutiliza el mismo número) y volver a calcular. |
+
+Reglas de seguridad:
+
+- No se puede anular si hay otro período de la misma frecuencia **en revisión** (procesado), porque ese cálculo no tendría en cuenta los adelantos y saldos devueltos.
+- Tampoco se puede procesar un período mientras haya una **boleta nueva sin confirmar**, para no descontar el mismo adelanto dos veces.
+- Las boletas anuladas **no suman** en los totales, en el inicio ni en los reportes de pagos. La planilla del período las muestra en un anexo aparte.
 
 **Reglas que protegen al usuario de errores**
 
@@ -180,6 +195,7 @@ El diseño original se respetó (mismas tablas y relaciones). Estas son las mejo
 | Empleados, adelantos, préstamos | ✅ | ✅ |
 | Crear, procesar y revertir períodos; bonos manuales | ✅ | ✅ |
 | **Cerrar período (confirmar pago)** | ✅ | ❌ |
+| **Anular período o boleta; confirmar boleta nueva** | ✅ | ❌ |
 | Eliminar empleados | ✅ | ❌ |
 | Puestos y conceptos de pago | ✅ | solo ver |
 | Reportes | ✅ | ❌ |
@@ -200,8 +216,8 @@ Todos bajo `/api` y con `Authorization: Bearer <token>` (excepto el login). La l
 | Empleados | `GET/POST /empleados` · `GET/PATCH/DELETE /empleados/:id` · `GET /empleados/:id/estado-cuenta` · `POST/GET /empleados/:id/foto-dpi` |
 | Adelantos | `GET/POST /adelantos` · `GET/PATCH/DELETE /adelantos/:id` |
 | Préstamos | `GET/POST /prestamos` · `GET/PATCH/DELETE /prestamos/:id` · `PATCH /prestamos/:id/cancelar` |
-| Períodos | `GET/POST /periodos-nomina` · `GET /periodos-nomina/sugerencia` · `GET/PATCH/DELETE /periodos-nomina/:id` · `POST /periodos-nomina/:id/procesar` · `/revertir` · `/cerrar` |
-| Nóminas | `GET /nominas` · `GET /nominas/:id` (boleta) · `POST /nominas/:id/detalles` · `DELETE /nominas/:id/detalles/:detalleId` |
+| Períodos | `GET/POST /periodos-nomina` · `GET /periodos-nomina/sugerencia` · `GET/PATCH/DELETE /periodos-nomina/:id` · `POST /periodos-nomina/:id/procesar` · `/revertir` · `/cerrar` · `/anular` · `/reemitir/:empleadoId` |
+| Nóminas | `GET /nominas` · `GET /nominas/:id` (boleta) · `POST /nominas/:id/detalles` · `DELETE /nominas/:id/detalles/:detalleId` · `POST /nominas/:id/anular` · `POST /nominas/:id/confirmar` · `DELETE /nominas/:id` (descartar boleta nueva) |
 | Dashboard | `GET /dashboard/resumen` |
 | Reportes *(ADMIN)* | `GET /reportes/planilla/:periodoId` · `/reportes/pagos` · `/reportes/adelantos` · `/reportes/prestamos` · `/reportes/empleados` — todos con `?formato=json|xlsx|pdf` |
 

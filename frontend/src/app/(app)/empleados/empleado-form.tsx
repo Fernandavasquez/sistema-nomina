@@ -199,11 +199,7 @@ export function EmpleadoForm({ empleado }: { empleado?: Empleado }) {
           {empleado ? 'Guardar cambios' : 'Registrar empleado'}
         </Button>
       </div>
-      <PuestoFormModal
-        open={nuevoPuesto}
-        onClose={() => setNuevoPuesto(false)}
-        onGuardado={(p) => setPuestoCreadoId(p.id)}
-      />
+      <PuestoFormModal open={nuevoPuesto} onClose={() => setNuevoPuesto(false)} onGuardado={(p) => setPuestoCreadoId(p.id)} />
     </form>
   );
 }

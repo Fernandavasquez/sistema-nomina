@@ -3,8 +3,15 @@
 export type RolNombre = 'ADMIN' | 'OPERADOR';
 export type EstadoEmpleado = 'ACTIVO' | 'INACTIVO';
 export type EstadoPrestamo = 'ACTIVO' | 'PAGADO' | 'CANCELADO';
-export type EstadoPeriodo = 'ABIERTO' | 'PROCESADO' | 'CERRADO';
-export type EstadoNomina = 'GENERADA' | 'PAGADA';
+export type EstadoPeriodo = 'ABIERTO' | 'PROCESADO' | 'CERRADO' | 'ANULADO';
+export type EstadoNomina = 'GENERADA' | 'PAGADA' | 'ANULADA';
+
+/** Datos de auditoría de un período o boleta anulados. */
+export interface Anulacion {
+  motivoAnulacion: string | null;
+  fechaAnulacion: string | null;
+  anuladoPor: { nombre: string; apellido: string; username: string } | null;
+}
 export type TipoConcepto = 'PERCEPCION' | 'DEDUCCION';
 
 interface Base {
@@ -96,7 +103,7 @@ export interface PrestamoDetalle extends Prestamo {
   abonos: { id: number; monto: number; nominaId: number; estadoNomina: EstadoNomina; periodo: PeriodoNomina }[];
 }
 
-export interface PeriodoNomina extends Base {
+export interface PeriodoNomina extends Base, Partial<Anulacion> {
   frecuenciaPagoId: number;
   frecuenciaPago: FrecuenciaPago;
   anio: number;
@@ -117,7 +124,7 @@ export interface NominaDetalle extends Base {
   observacion: string | null;
 }
 
-export interface Nomina extends Base {
+export interface Nomina extends Base, Partial<Anulacion> {
   periodoId: number;
   periodo?: PeriodoNomina;
   empleadoId: number;
@@ -137,6 +144,8 @@ export interface PeriodoDetalle extends PeriodoNomina {
     totalDeducciones: number;
     totalLiquido: number;
     nominasConLiquidoNegativo: number;
+    boletasAnuladas: number;
+    boletasPorConfirmar: number;
   };
   nominas: Nomina[];
 }

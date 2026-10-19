@@ -1,5 +1,6 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, ParseIntPipe, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { CurrentUser, type AuthUser } from '../common/decorators/current-user.decorator.js';
 import { Roles } from '../common/decorators/roles.decorator.js';
 import { RolNombre } from '../common/enums.js';
 import {
@@ -8,6 +9,7 @@ import {
   SugerenciaPeriodoDto,
   UpdatePeriodoNominaDto,
 } from './dto/periodo-nomina.dto.js';
+import { AnularDto } from './dto/anular.dto.js';
 import { PeriodosNominaService } from './periodos-nomina.service.js';
 
 @ApiTags('Períodos de nómina')
@@ -67,5 +69,19 @@ export class PeriodosNominaController {
   @HttpCode(200)
   cerrar(@Param('id', ParseIntPipe) id: number) {
     return this.service.cerrar(id);
+  }
+
+  @ApiOperation({ summary: 'Anula un período pagado: devuelve adelantos y saldos (CERRADO → ANULADO)' })
+  @Roles(RolNombre.ADMIN)
+  @Post(':id/anular')
+  @HttpCode(200)
+  anular(@Param('id', ParseIntPipe) id: number, @Body() dto: AnularDto, @CurrentUser() user: AuthUser) {
+    return this.service.anular(id, dto.motivo, user.id);
+  }
+
+  @ApiOperation({ summary: 'Emite una boleta nueva para un empleado cuya boleta se anuló en este período' })
+  @Post(':id/reemitir/:empleadoId')
+  reemitir(@Param('id', ParseIntPipe) id: number, @Param('empleadoId', ParseIntPipe) empleadoId: number) {
+    return this.service.reemitir(id, empleadoId);
   }
 }

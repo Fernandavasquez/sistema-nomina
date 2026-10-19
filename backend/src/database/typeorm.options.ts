@@ -22,6 +22,8 @@ export function buildTypeOrmOptions(env: NodeJS.ProcessEnv = process.env): DataS
     migrations: [join(here, 'migrations', '*.js')],
     // Nunca sincronizar el esquema automáticamente: los cambios se hacen con migraciones.
     synchronize: false,
+    // Cada migración corre en su propia transacción (y una migración puede pedir no usarla, ver AnulacionPagos).
+    migrationsTransactionMode: 'each',
     logging: env.DB_LOGGING === 'true' ? ['query', 'error'] : ['error'],
   };
 }

@@ -2,15 +2,18 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus, Printer, Trash2 } from 'lucide-react';
-import { useParams } from 'next/navigation';
+import { Ban, CheckCircle2, Plus, Printer, Trash2, X } from 'lucide-react';
+import { useParams, useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
+import { AnularModal, AvisoAnulacion } from '@/components/forms/anular-modal';
 import {
+  Alert,
   Button,
   Card,
+  ConfirmDialog,
   ErrorState,
   EstadoBadge,
   Field,
@@ -21,7 +24,7 @@ import {
   Select,
   Spinner,
 } from '@/components/ui';
-import { useConceptos } from '@/hooks/queries';
+import { useConceptos, useSesion } from '@/hooks/queries';
 import { api } from '@/lib/api';
 import { date, dpi, money, nombreCompleto, nombrePeriodo } from '@/lib/format';
 import type { Nomina, NominaDetalle } from '@/lib/types';
@@ -29,7 +32,10 @@ import type { Nomina, NominaDetalle } from '@/lib/types';
 export function Boleta() {
   const { id } = useParams<{ id: string }>();
   const queryClient = useQueryClient();
+  const router = useRouter();
+  const { esAdmin } = useSesion();
   const [agregar, setAgregar] = useState(false);
+  const [modal, setModal] = useState<'anular' | 'confirmar' | 'descartar' | null>(null);
 
   const {
     data: n,
@@ -50,11 +56,31 @@ export function Boleta() {
     },
   });
 
+  // Anular (boleta pagada), confirmar el pago o descartar una boleta nueva sin confirmar.
+  const accion = useMutation({
+    mutationFn: ({ tipo, motivo }: { tipo: 'anular' | 'confirmar' | 'descartar'; motivo?: string }) =>
+      tipo === 'descartar' ? api.delete(`/nominas/${id}`) : api.post(`/nominas/${id}/${tipo}`, motivo ? { motivo } : undefined),
+    onSuccess: (_r, { tipo }) => {
+      const mensajes = {
+        anular: 'Boleta anulada. Los adelantos y préstamos del empleado volvieron a como estaban.',
+        confirmar: 'Pago confirmado.',
+        descartar: 'Boleta descartada.',
+      };
+      toast.success(mensajes[tipo]);
+      queryClient.invalidateQueries();
+      if (tipo === 'descartar') router.push(`/periodos/${n?.periodoId}`);
+    },
+    onSettled: () => setModal(null),
+  });
+
   if (isLoading) return <Spinner />;
   if (error) return <ErrorState error={error} onRetry={refetch} />;
   if (!n || !n.periodo || !n.empleado) return null;
 
-  const editable = n.estado === 'GENERADA' && n.periodo.estado === 'PROCESADO';
+  // Boleta nueva emitida en un período ya pagado (tras anular la anterior), pendiente de confirmar.
+  const esNuevaPorConfirmar = n.estado === 'GENERADA' && n.periodo.estado === 'CERRADO';
+  const editable = n.estado === 'GENERADA' && (n.periodo.estado === 'PROCESADO' || esNuevaPorConfirmar);
+  const anulable = esAdmin && n.estado === 'PAGADA' && n.periodo.estado === 'CERRADO';
   const percepciones = n.detalles?.filter((d) => d.concepto.tipo === 'PERCEPCION') ?? [];
   const deducciones = n.detalles?.filter((d) => d.concepto.tipo === 'DEDUCCION') ?? [];
   const periodo = { ...n.periodo, frecuenciaPago: n.periodo.frecuenciaPago ?? n.empleado.frecuenciaPago };
@@ -74,11 +100,47 @@ export function Boleta() {
             <Button variant="secondary" onClick={() => window.print()}>
               <Printer className="size-4" /> Imprimir
             </Button>
+            {anulable && (
+              <Button variant="ghost" className="text-red-600 hover:bg-red-50" onClick={() => setModal('anular')}>
+                <Ban className="size-4" /> Anular boleta
+              </Button>
+            )}
+            {esNuevaPorConfirmar && (
+              <>
+                <Button variant="ghost" className="text-red-600 hover:bg-red-50" onClick={() => setModal('descartar')}>
+                  <X className="size-4" /> Descartar
+                </Button>
+                {esAdmin && (
+                  <Button onClick={() => setModal('confirmar')} disabled={n.liquidoRecibir < 0}>
+                    <CheckCircle2 className="size-4" /> Confirmar pago
+                  </Button>
+                )}
+              </>
+            )}
           </>
         }
       />
 
-      <Card className="print-full mx-auto max-w-3xl p-6 sm:p-8">
+      <div className="no-print mx-auto mb-4 max-w-3xl space-y-3 empty:hidden">
+        {n.estado === 'ANULADA' && <AvisoAnulacion texto="Esta boleta fue anulada" anulacion={n} />}
+        {esNuevaPorConfirmar && (
+          <Alert color="amber">
+            Boleta nueva que reemplaza a una anulada. Revise los montos (puede agregar bonos o descuentos) y
+            {esAdmin ? ' confirme el pago.' : ' pida a un administrador que confirme el pago.'}
+          </Alert>
+        )}
+      </div>
+
+      <Card className="print-full relative mx-auto max-w-3xl overflow-hidden p-6 sm:p-8">
+        {n.estado === 'ANULADA' && (
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0 flex items-center justify-center text-6xl font-black tracking-widest text-red-500/15 sm:text-8xl"
+            style={{ transform: 'rotate(-20deg)' }}
+          >
+            ANULADA
+          </div>
+        )}
         <div className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-200 pb-5">
           <div>
             <p className="text-xs font-semibold tracking-wider text-slate-500 uppercase">Boleta de pago</p>
@@ -125,6 +187,44 @@ export function Boleta() {
         </div>
       </Card>
 
+      <AnularModal
+        open={modal === 'anular'}
+        onClose={() => setModal(null)}
+        onConfirmar={(motivo) => accion.mutate({ tipo: 'anular', motivo })}
+        loading={accion.isPending}
+        titulo="Anular boleta"
+      >
+        <p>
+          Se anulará el pago de <strong>{nombreCompleto(n.empleado)}</strong> ({money(n.liquidoRecibir)}). Los demás empleados del
+          período no se modifican.
+        </p>
+        <ul className="list-disc space-y-1 pl-5">
+          <li>Sus adelantos descontados vuelven a quedar pendientes.</li>
+          <li>Sus préstamos recuperan el saldo de la cuota descontada.</li>
+          <li>La boleta queda como ANULADA (no se borra) y podrá emitir una boleta nueva desde el período.</li>
+        </ul>
+      </AnularModal>
+      <ConfirmDialog
+        open={modal === 'confirmar'}
+        onClose={() => setModal(null)}
+        onConfirm={() => accion.mutate({ tipo: 'confirmar' })}
+        loading={accion.isPending}
+        title="Confirmar pago"
+        confirmText={`Confirmar pago de ${money(n.liquidoRecibir)}`}
+      >
+        <p>Los adelantos de esta boleta quedarán como descontados y se rebajará el saldo de sus préstamos.</p>
+      </ConfirmDialog>
+      <ConfirmDialog
+        open={modal === 'descartar'}
+        onClose={() => setModal(null)}
+        onConfirm={() => accion.mutate({ tipo: 'descartar' })}
+        loading={accion.isPending}
+        title="Descartar boleta nueva"
+        confirmText="Descartar"
+        variant="danger"
+      >
+        <p>La boleta nueva se eliminará. El empleado seguirá con su boleta anulada en este período.</p>
+      </ConfirmDialog>
       <AgregarLineaModal open={agregar} onClose={() => setAgregar(false)} nominaId={n.id} />
     </>
   );

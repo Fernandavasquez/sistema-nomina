@@ -74,6 +74,18 @@
     {
       "key": "periodoCerradoId",
       "value": ""
+    },
+    {
+      "key": "nominaNuevaId",
+      "value": ""
+    },
+    {
+      "key": "periodoAnuladoNumero",
+      "value": ""
+    },
+    {
+      "key": "periodoRehechoId",
+      "value": ""
     }
   ],
   "item": [
@@ -782,6 +794,586 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('Status 401', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "01 · Anulaciones",
+      "description": "Ejecútela después de \"00 · Flujo completo\". Anula la boleta pagada del empleado de prueba, emite y confirma una boleta nueva, y luego anula el período completo y lo vuelve a crear.",
+      "item": [
+        {
+          "name": "1. Validación: motivo demasiado corto",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/nominas/{{nominaId}}/anular",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "nominas",
+                "{{nominaId}}",
+                "anular"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"motivo\": \"error\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "2. Anular la boleta del empleado",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/nominas/{{nominaId}}/anular",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "nominas",
+                "{{nominaId}}",
+                "anular"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"motivo\": \"Se pagó con un monto equivocado (prueba)\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const n = pm.response.json().nominas.find(x => x.id === Number(pm.collectionVariables.get('nominaId')));",
+                  "pm.test('Boleta ANULADA', () => pm.expect(n.estado).to.eql('ANULADA'));",
+                  "pm.test('Guarda el motivo', () => pm.expect(n.motivoAnulacion).to.include('monto equivocado'));",
+                  "pm.test('Guarda quién anuló', () => pm.expect(n.anuladoPor.username).to.eql(pm.variables.get('adminUser')));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "3. El adelanto vuelve a estar pendiente",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/adelantos/{{adelantoId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "adelantos",
+                "{{adelantoId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('aplicado = false', () => pm.expect(pm.response.json().aplicado).to.eql(false));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "4. El préstamo recupera su saldo",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/prestamos/{{prestamoId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "prestamos",
+                "{{prestamoId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Saldo = 1000', () => pm.expect(pm.response.json().saldoPendiente).to.eql(1000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "5. Validación: no se anula dos veces",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/nominas/{{nominaId}}/anular",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "nominas",
+                "{{nominaId}}",
+                "anular"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"motivo\": \"Segundo intento de anulación\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 409', () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "6. Emitir boleta nueva para el empleado",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/periodos-nomina/{{periodoCerradoId}}/reemitir/{{empleadoId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "periodos-nomina",
+                "{{periodoCerradoId}}",
+                "reemitir",
+                "{{empleadoId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('nominaNuevaId', pm.response.json().nominaId);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "7. La boleta nueva está pendiente de confirmar",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/nominas/{{nominaNuevaId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "nominas",
+                "{{nominaNuevaId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const n = pm.response.json();",
+                  "pm.test('Estado GENERADA', () => pm.expect(n.estado).to.eql('GENERADA'));",
+                  "// 1200 − 200 (adelanto) − 250 (cuota) = 750",
+                  "pm.test('Líquido = 750', () => pm.expect(n.liquidoRecibir).to.eql(750));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "8. Validación: no se emite otra si ya hay una vigente",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/periodos-nomina/{{periodoCerradoId}}/reemitir/{{empleadoId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "periodos-nomina",
+                "{{periodoCerradoId}}",
+                "reemitir",
+                "{{empleadoId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 409', () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "9. Confirmar el pago de la boleta nueva",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/nominas/{{nominaNuevaId}}/confirmar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "nominas",
+                "{{nominaNuevaId}}",
+                "confirmar"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const n = pm.response.json().nominas.find(x => x.id === Number(pm.collectionVariables.get('nominaNuevaId')));",
+                  "pm.test('Boleta PAGADA', () => pm.expect(n.estado).to.eql('PAGADA'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "10. El préstamo vuelve a rebajarse",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/prestamos/{{prestamoId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "prestamos",
+                "{{prestamoId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Saldo = 750', () => pm.expect(pm.response.json().saldoPendiente).to.eql(750));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "11. Anular el período completo",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/periodos-nomina/{{periodoCerradoId}}/anular",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "periodos-nomina",
+                "{{periodoCerradoId}}",
+                "anular"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"motivo\": \"Se cerró el período con fechas equivocadas (prueba)\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const p = pm.response.json();",
+                  "pm.test('Período ANULADO', () => pm.expect(p.estado).to.eql('ANULADO'));",
+                  "pm.test('Todas las boletas anuladas', () => pm.expect(p.nominas.every(n => n.estado === 'ANULADA')).to.eql(true));",
+                  "pm.test('Total vigente = 0', () => pm.expect(p.resumen.totalLiquido).to.eql(0));",
+                  "pm.collectionVariables.set('periodoAnuladoNumero', p.numeroPeriodo);",
+                  "pm.collectionVariables.set('fechaInicio', p.fechaInicio);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "12. Saldo y adelanto devueltos otra vez",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/empleados/{{empleadoId}}/estado-cuenta",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "empleados",
+                "{{empleadoId}}",
+                "estado-cuenta"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const e = pm.response.json();",
+                  "pm.test('Adelanto pendiente = 200', () => pm.expect(e.totalAdelantosPendientes).to.eql(200));",
+                  "pm.test('Saldo préstamos = 1000', () => pm.expect(e.totalSaldoPrestamos).to.eql(1000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "13. Validación: un período anulado no se procesa",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/periodos-nomina/{{periodoCerradoId}}/procesar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "periodos-nomina",
+                "{{periodoCerradoId}}",
+                "procesar"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 409', () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "14. Planilla del período anulado (anexo de anuladas)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/reportes/planilla/{{periodoCerradoId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reportes",
+                "planilla",
+                "{{periodoCerradoId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const r = pm.response.json();",
+                  "pm.test('Sin boletas vigentes', () => pm.expect(r.filas.length).to.eql(0));",
+                  "pm.test('Anexo de anuladas', () => pm.expect(r.anexos.find(a => a.titulo === 'Boletas anuladas').filas.length).to.be.above(0));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "15. Rehacer el período con las mismas fechas",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/periodos-nomina",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "periodos-nomina"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"frecuenciaPagoId\": \"{{frecuenciaId}}\",\n  \"fechaInicio\": \"{{fechaInicio}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "const p = pm.response.json();",
+                  "pm.test('Reutiliza el número del período anulado', () => pm.expect(p.numeroPeriodo).to.eql(Number(pm.collectionVariables.get('periodoAnuladoNumero'))));",
+                  "pm.collectionVariables.set('periodoRehechoId', p.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "16. Limpieza: eliminar el período rehecho",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/periodos-nomina/{{periodoRehechoId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "periodos-nomina",
+                "{{periodoRehechoId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));"
                 ]
               }
             }
