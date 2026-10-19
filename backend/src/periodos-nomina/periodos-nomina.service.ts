@@ -20,6 +20,7 @@ import { NominaDetalle } from '../nominas/entities/nomina-detalle.entity.js';
 import { NominaEncabezado } from '../nominas/entities/nomina-encabezado.entity.js';
 import { datosPago, tieneCuenta } from '../nominas/metodo-pago.js';
 import { calcularTotales } from '../nominas/nomina-calculo.js';
+import { calcularSueldo, descuentoFaltas, diasDelMes, fechaCorta, salarioDiario } from '../nominas/salario.js';
 import { Prestamo } from '../prestamos/entities/prestamo.entity.js';
 import { CreatePeriodoNominaDto, FiltroPeriodosDto, UpdatePeriodoNominaDto } from './dto/periodo-nomina.dto.js';
 import { PeriodoNomina } from './entities/periodo-nomina.entity.js';
@@ -160,7 +161,8 @@ export class PeriodosNominaService {
 
   /**
    * PROCESAR: genera (o regenera) la nómina de cada empleado activo con esa frecuencia.
-   *  + SUELDO_BASE  = salario del período
+   *  + SUELDO_BASE  = pago fijo del período (proporcional si ingresó a medio período)
+   *  − FALTAS       = días que faltó × salario diario del mes (se anotan en la boleta)
    *  − ADELANTO     = cada adelanto pendiente solicitado hasta la fecha fin
    *  − PRESTAMO     = cuota de cada préstamo activo (o el saldo, si es menor)
    * Los bonos/descuentos manuales agregados antes se conservan al reprocesar.
@@ -219,7 +221,7 @@ export class PeriodosNominaService {
             }),
           );
         }
-        await this.generarLineas(manager, nomina.id, empleado, periodo, conceptos);
+        await this.generarLineas(manager, nomina, empleado, periodo, conceptos);
       }
 
       await manager.update(PeriodoNomina, id, { estado: EstadoPeriodo.PROCESADO });
@@ -370,7 +372,7 @@ export class PeriodosNominaService {
           ...datosPago(empleado),
         }),
       );
-      await this.generarLineas(manager, nomina.id, empleado, periodo, await this.conceptosSistema(manager));
+      await this.generarLineas(manager, nomina, empleado, periodo, await this.conceptosSistema(manager));
       return nomina.id;
     });
     return { nominaId, periodo: await this.detalle(periodoId) };
@@ -415,14 +417,27 @@ export class PeriodosNominaService {
     await manager.update(NominaEncabezado, nominaId, calcularTotales(lineas));
   }
 
-  /** Crea las líneas automáticas de una boleta: sueldo, adelantos pendientes y cuotas de préstamos. */
+  /**
+   * Crea las líneas automáticas de una boleta: sueldo (completo o proporcional al ingreso),
+   * faltas, adelantos pendientes y cuotas de préstamos.
+   * Las faltas ya anotadas en la boleta se conservan al reprocesar.
+   */
   private async generarLineas(
     manager: EntityManager,
-    nominaId: number,
+    nomina: Pick<NominaEncabezado, 'id' | 'diasFalta'>,
     empleado: Empleado,
     periodo: PeriodoNomina,
     conceptos: ConceptosSistema,
   ) {
+    const nominaId = nomina.id;
+    const sueldo = calcularSueldo(empleado.salarioMensual, empleado.frecuenciaPago, periodo, empleado.fechaIngreso);
+    const diasFalta = Math.min(nomina.diasFalta ?? 0, sueldo.diasLaborados);
+    await manager.update(NominaEncabezado, nominaId, {
+      salarioMensual: empleado.salarioMensual,
+      diasLaborados: sueldo.diasLaborados,
+      diasFalta,
+    });
+
     const [adelantos, prestamos] = await Promise.all([
       manager.find(Adelanto, {
         where: { empleadoId: empleado.id, aplicado: false, fechaSolicitud: LessThanOrEqual(periodo.fechaFin) },
@@ -440,7 +455,14 @@ export class PeriodosNominaService {
     ]);
 
     const lineas: Partial<NominaDetalle>[] = [
-      { conceptoId: conceptos.SUELDO_BASE.id, monto: empleado.salarioBase },
+      {
+        conceptoId: conceptos.SUELDO_BASE.id,
+        monto: sueldo.monto,
+        observacion: sueldo.proporcional
+          ? `Ingresó el ${fechaCorta(empleado.fechaIngreso)}: ${sueldo.diasLaborados} día(s) trabajados`
+          : `Período completo (${sueldo.diasLaborados} días)`,
+      },
+      ...(diasFalta ? [this.lineaFaltas(conceptos, empleado.salarioMensual, diasFalta, periodo.fechaFin)] : []),
       ...adelantos.map((a) => ({
         conceptoId: conceptos.ADELANTO.id,
         monto: a.monto,
@@ -456,6 +478,46 @@ export class PeriodosNominaService {
     ];
     await manager.save(lineas.map((l) => manager.create(NominaDetalle, { ...l, nominaId })));
     await this.recalcular(manager, nominaId);
+  }
+
+  private lineaFaltas(conceptos: ConceptosSistema, salarioMensual: number, dias: number, fechaFin: string) {
+    const diario = salarioDiario(salarioMensual, fechaFin);
+    return {
+      conceptoId: conceptos.FALTAS.id,
+      monto: descuentoFaltas(salarioMensual, dias, fechaFin),
+      observacion: `${dias} día(s) × Q${diario.toFixed(2)} (mensual ÷ ${diasDelMes(fechaFin)} días del mes)`,
+    };
+  }
+
+  /**
+   * Anota los días que faltó el empleado en una boleta en revisión y recalcula el descuento.
+   * Se valida antes que la boleta sea editable.
+   */
+  async registrarFaltas(nominaId: number, diasFalta: number) {
+    await this.dataSource.transaction(async (manager) => {
+      const nomina = await this.bloquearNomina(manager, nominaId);
+      if (nomina.salarioMensual == null || nomina.diasLaborados == null) {
+        throw new ConflictException(
+          'Esta boleta se calculó antes del salario mensual. Vuelva a procesar el período para registrar faltas.',
+        );
+      }
+      if (diasFalta > nomina.diasLaborados) {
+        throw new BadRequestException(`No puede tener más de ${nomina.diasLaborados} día(s) de falta en este período`);
+      }
+      const periodo = await this.bloquearPeriodo(manager, nomina.periodoId);
+      const conceptos = await this.conceptosSistema(manager);
+      await manager.delete(NominaDetalle, { nominaId, conceptoId: conceptos.FALTAS.id });
+      if (diasFalta) {
+        await manager.save(
+          manager.create(NominaDetalle, {
+            ...this.lineaFaltas(conceptos, nomina.salarioMensual, diasFalta, periodo.fechaFin),
+            nominaId,
+          }),
+        );
+      }
+      await manager.update(NominaEncabezado, nominaId, { diasFalta });
+      await this.recalcular(manager, nominaId);
+    });
   }
 
   /** Efecto de pagar boletas: adelantos aplicados, saldos de préstamos rebajados, boletas PAGADAS. */

@@ -5,6 +5,7 @@ import { EstadoEmpleado, EstadoNomina, EstadoPrestamo } from '../common/enums.js
 import { today } from '../common/utils/dates.js';
 import { Empleado } from '../empleados/entities/empleado.entity.js';
 import { NominaDetalle } from '../nominas/entities/nomina-detalle.entity.js';
+import { salarioPorPago } from '../nominas/salario.js';
 import { CancelarPrestamoDto, CreatePrestamoDto, FiltroPrestamosDto, UpdatePrestamoDto } from './dto/prestamo.dto.js';
 import { Prestamo } from './entities/prestamo.entity.js';
 
@@ -59,7 +60,7 @@ export class PrestamosService {
     if (empleado.estado !== EstadoEmpleado.ACTIVO) {
       throw new BadRequestException('No se pueden otorgar préstamos a un empleado inactivo');
     }
-    this.validarCuota(dto.montoCuota, dto.montoTotal, empleado.salarioBase);
+    this.validarCuota(dto.montoCuota, dto.montoTotal, salarioPorPago(empleado.salarioMensual, empleado.frecuenciaPago));
 
     const { id } = await this.prestamos.save(
       this.prestamos.create({
@@ -79,7 +80,11 @@ export class PrestamosService {
     }
     if (dto.montoCuota !== undefined) {
       await this.assertSinNominaEnProceso(id);
-      this.validarCuota(dto.montoCuota, prestamo.saldoPendiente, prestamo.empleado.salarioBase);
+      this.validarCuota(
+        dto.montoCuota,
+        prestamo.saldoPendiente,
+        salarioPorPago(prestamo.empleado.salarioMensual, prestamo.empleado.frecuenciaPago),
+      );
     }
     if (Object.keys(dto).length) await this.prestamos.update(id, dto);
     return this.findOne(id);
@@ -110,8 +115,7 @@ export class PrestamosService {
 
   private validarCuota(cuota: number, tope: number, salario: number) {
     if (cuota > tope) throw new BadRequestException('La cuota no puede ser mayor al monto pendiente del préstamo');
-    if (cuota > salario)
-      throw new BadRequestException(`La cuota no puede superar el salario del período (Q${salario})`);
+    if (cuota > salario) throw new BadRequestException(`La cuota no puede superar el pago del período (Q${salario})`);
   }
 
   private async assertSinNominaEnProceso(prestamoId: number) {

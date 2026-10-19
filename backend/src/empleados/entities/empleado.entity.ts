@@ -7,7 +7,7 @@ import { Puesto } from '../../puestos/entities/puesto.entity.js';
 
 @Entity('empleados')
 // Reglas CHECK de la base de datos (creadas en la migración inicial).
-@Check('chk_empleados_salario', '"salario_base" > 0')
+@Check('chk_empleados_salario', '"salario_mensual" > 0')
 @Check('chk_empleados_dpi', `"dpi" ~ '^[0-9]{13}$'`)
 export class Empleado extends BaseEntity {
   @Column({ type: 'varchar', length: 100 })
@@ -36,9 +36,9 @@ export class Empleado extends BaseEntity {
   @Column({ type: 'enum', enum: EstadoEmpleado, default: EstadoEmpleado.ACTIVO })
   estado: EstadoEmpleado;
 
-  /** Salario que recibe en CADA pago (semanal o quincenal, según su frecuencia). */
+  /** Salario MENSUAL. El pago semanal o quincenal se calcula solo (mes de 30 días). */
   @Column(moneyColumn)
-  salarioBase: number;
+  salarioMensual: number;
 
   @Column({ type: 'varchar', length: 100, nullable: true })
   bancoDestino: string | null;

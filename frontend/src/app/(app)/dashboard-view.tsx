@@ -64,7 +64,7 @@ export function DashboardView() {
               label="Planilla por período"
               value={money(data.empleadosPorFrecuencia.reduce((s, f) => s + f.totalSalarios, 0))}
               icon={<CalendarRange className="size-5" />}
-              hint="Suma de salarios base de una semana + una quincena"
+              hint={`Una semana + una quincena · planilla mensual ${money(data.empleadosPorFrecuencia.reduce((s, f) => s + f.totalMensual, 0))}`}
             />
             <Stat
               label="Adelantos por descontar"

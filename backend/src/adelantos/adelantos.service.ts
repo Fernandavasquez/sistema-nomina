@@ -4,6 +4,7 @@ import { FindOptionsWhere, Not, Repository } from 'typeorm';
 import { EstadoEmpleado, EstadoNomina } from '../common/enums.js';
 import { today } from '../common/utils/dates.js';
 import { round2 } from '../common/utils/money.js';
+import { salarioPorPago } from '../nominas/salario.js';
 import { Empleado } from '../empleados/entities/empleado.entity.js';
 import { NominaDetalle } from '../nominas/entities/nomina-detalle.entity.js';
 import { CreateAdelantoDto, FiltroAdelantosDto, UpdateAdelantoDto } from './dto/adelanto.dto.js';
@@ -73,10 +74,11 @@ export class AdelantosService {
   private async validarTope(empleado: Empleado, monto: number, exceptoId?: number) {
     const pendientes = await this.adelantos.findBy({ empleadoId: empleado.id, aplicado: false });
     const otros = pendientes.filter((a) => a.id !== exceptoId).reduce((s, a) => s + a.monto, 0);
-    const disponible = round2(empleado.salarioBase - otros);
+    const salario = salarioPorPago(empleado.salarioMensual, empleado.frecuenciaPago);
+    const disponible = round2(salario - otros);
     if (monto > disponible) {
       throw new BadRequestException(
-        `El adelanto supera lo disponible del próximo pago. Salario: Q${empleado.salarioBase}, ` +
+        `El adelanto supera lo disponible del próximo pago. Pago ${empleado.frecuenciaPago.nombre.toLowerCase()}: Q${salario}, ` +
           `adelantos pendientes: Q${round2(otros)}, máximo permitido: Q${Math.max(disponible, 0)}`,
       );
     }

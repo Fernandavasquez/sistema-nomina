@@ -20,10 +20,15 @@ export class DashboardService {
         .innerJoin('e.frecuenciaPago', 'f')
         .select('f.nombre', 'frecuencia')
         .addSelect('COUNT(*)::int', 'empleados')
-        .addSelect('SUM(e.salarioBase)', 'totalSalarios')
+        .addSelect('SUM(e.salarioMensual)', 'totalMensual')
+        // Pago fijo de cada frecuencia: quincena = mensual ÷ 2 · semana = mensual × 12 ÷ 52.
+        .addSelect(
+          "SUM(CASE f.codigo WHEN 'QUINCENAL' THEN e.salarioMensual / 2 WHEN 'SEMANAL' THEN e.salarioMensual * 12 / 52 ELSE e.salarioMensual * f.diasPeriodo / 30 END)",
+          'totalSalarios',
+        )
         .where('e.estado = :estado', { estado: EstadoEmpleado.ACTIVO })
         .groupBy('f.nombre')
-        .getRawMany<{ frecuencia: string; empleados: number; totalSalarios: string }>(),
+        .getRawMany<{ frecuencia: string; empleados: number; totalSalarios: string; totalMensual: string }>(),
       this.db
         .getRepository(Adelanto)
         .createQueryBuilder('a')
@@ -64,6 +69,7 @@ export class DashboardService {
       empleadosPorFrecuencia: empleadosPorFrecuencia.map((f) => ({
         ...f,
         totalSalarios: round2(Number(f.totalSalarios)),
+        totalMensual: round2(Number(f.totalMensual)),
       })),
       adelantosPendientes: { cantidad: adelantos?.cantidad ?? 0, total: round2(Number(adelantos?.total ?? 0)) },
       prestamosActivos: { cantidad: prestamos?.cantidad ?? 0, saldo: round2(Number(prestamos?.saldo ?? 0)) },

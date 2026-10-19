@@ -247,7 +247,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"nombres\": \"Pedro\",\n  \"apellidos\": \"Prueba Postman\",\n  \"dpi\": \"{{dpi}}\",\n  \"telefono\": \"55551234\",\n  \"direccion\": \"Zona 1, Ciudad de Guatemala\",\n  \"fechaIngreso\": \"2026-01-01\",\n  \"salarioBase\": 1200,\n  \"puestoId\": \"{{puestoId}}\",\n  \"frecuenciaPagoId\": \"{{frecuenciaId}}\",\n  \"bancoDestino\": \"Banrural\",\n  \"numeroCuenta\": \"1234567890\"\n}",
+              "raw": "{\n  \"nombres\": \"Pedro\",\n  \"apellidos\": \"Prueba Postman\",\n  \"dpi\": \"{{dpi}}\",\n  \"telefono\": \"55551234\",\n  \"direccion\": \"Zona 1, Ciudad de Guatemala\",\n  \"fechaIngreso\": \"2026-01-01\",\n  \"salarioMensual\": 5200,\n  \"puestoId\": \"{{puestoId}}\",\n  \"frecuenciaPagoId\": \"{{frecuenciaId}}\",\n  \"bancoDestino\": \"Banrural\",\n  \"numeroCuenta\": \"1234567890\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -273,7 +273,7 @@
                 "exec": [
                   "pm.test('Status 201', () => pm.response.to.have.status(201));",
                   "const e = pm.response.json();",
-                  "pm.test('Salario es número', () => pm.expect(e.salarioBase).to.eql(1200));",
+                  "pm.test('Salario mensual es número', () => pm.expect(e.salarioMensual).to.eql(5200));",
                   "pm.collectionVariables.set('empleadoId', e.id);"
                 ]
               }
@@ -526,7 +526,9 @@
                   "pm.test('Estado PROCESADO', () => pm.expect(p.estado).to.eql('PROCESADO'));",
                   "const n = p.nominas.find(x => x.empleadoId === Number(pm.collectionVariables.get('empleadoId')));",
                   "pm.test('Incluye al empleado', () => pm.expect(n).to.be.an('object'));",
-                  "// 1200 − 200 (adelanto) − 250 (cuota préstamo) = 750",
+                  "// Semana completa: 5200 × 12 ÷ 52 = 1200 − 200 (adelanto) − 250 (cuota préstamo) = 750",
+                  "pm.test('Sueldo semanal = 1200', () => pm.expect(n.totalPercepciones).to.eql(1200));",
+                  "pm.test('Guarda la base del cálculo', () => pm.expect(n.salarioMensual).to.eql(5200) && pm.expect(n.diasLaborados).to.eql(7));",
                   "pm.test('Líquido = 750', () => pm.expect(n.liquidoRecibir).to.eql(750));",
                   "pm.collectionVariables.set('nominaId', n.id);"
                 ]
@@ -859,6 +861,145 @@
                   "const n = pm.response.json();",
                   "pm.test('Líquido = 850', () => pm.expect(n.liquidoRecibir).to.eql(850));",
                   "pm.test('Percepciones = 1300', () => pm.expect(n.totalPercepciones).to.eql(1300));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "12a. Anotar 1 día de falta",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/nominas/{{nominaId}}/faltas",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "nominas",
+                "{{nominaId}}",
+                "faltas"
+              ]
+            },
+            "description": "Descuenta un salario diario: mensual ÷ días del mes en que termina el período (28, 30 o 31).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"diasFalta\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const n = pm.response.json();",
+                  "const falta = n.detalles.find(d => d.concepto.codigo === 'FALTAS');",
+                  "const diasMes = new Date(Date.UTC(...n.periodo.fechaFin.split('-').slice(0, 2).map(Number), 0)).getUTCDate();",
+                  "pm.test('Descuento = 5200 ÷ días del mes', () => pm.expect(falta.monto).to.eql(Math.round(5200 / diasMes * 100) / 100));",
+                  "pm.test('Líquido baja por la falta', () => pm.expect(n.liquidoRecibir).to.eql(Math.round((850 - falta.monto) * 100) / 100));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "12b. Validación: más faltas que días del período",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/nominas/{{nominaId}}/faltas",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "nominas",
+                "{{nominaId}}",
+                "faltas"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"diasFalta\": 8\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "12c. Quitar la falta",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/nominas/{{nominaId}}/faltas",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "nominas",
+                "{{nominaId}}",
+                "faltas"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"diasFalta\": 0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Líquido = 850 otra vez', () => pm.expect(pm.response.json().liquidoRecibir).to.eql(850));"
                 ]
               }
             }
@@ -2561,7 +2702,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"telefono\": \"44448888\",\n  \"salarioBase\": 1300\n}",
+              "raw": "{\n  \"telefono\": \"44448888\",\n  \"salarioMensual\": 5200\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -2603,7 +2744,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"nombres\": \"Sin\",\n  \"apellidos\": \"Contacto\",\n  \"dpi\": \"1234567890123\",\n  \"fechaIngreso\": \"2026-01-01\",\n  \"salarioBase\": 1000,\n  \"puestoId\": 1,\n  \"frecuenciaPagoId\": 1\n}",
+              "raw": "{\n  \"nombres\": \"Sin\",\n  \"apellidos\": \"Contacto\",\n  \"dpi\": \"1234567890123\",\n  \"fechaIngreso\": \"2026-01-01\",\n  \"salarioMensual\": 3000,\n  \"puestoId\": 1,\n  \"frecuenciaPagoId\": 1\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -2691,7 +2832,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"nombres\": \"X\",\n  \"apellidos\": \"Y\",\n  \"dpi\": \"123\",\n  \"fechaIngreso\": \"2026-01-01\",\n  \"salarioBase\": -5,\n  \"puestoId\": 1,\n  \"frecuenciaPagoId\": 1\n}",
+              "raw": "{\n  \"nombres\": \"X\",\n  \"apellidos\": \"Y\",\n  \"dpi\": \"123\",\n  \"fechaIngreso\": \"2026-01-01\",\n  \"salarioMensual\": -5,\n  \"puestoId\": 1,\n  \"frecuenciaPagoId\": 1\n}",
               "options": {
                 "raw": {
                   "language": "json"

@@ -8,6 +8,7 @@ import { useDebounce } from '@/hooks/use-debounce';
 import { api, qs } from '@/lib/api';
 import { dpi, money } from '@/lib/format';
 import type { Empleado } from '@/lib/types';
+import { salarioPorPago } from '@/lib/salario';
 
 const MAX_RESULTADOS = 8;
 
@@ -181,8 +182,10 @@ export function EmpleadoBuscador({
                     </p>
                   </div>
                   <div className="shrink-0 text-right">
-                    <p className="tabular text-xs font-medium text-slate-700">{money(e.salarioBase)}</p>
-                    <p className="text-xs text-slate-400">{e.frecuenciaPago.nombre}</p>
+                    <p className="tabular text-xs font-medium text-slate-700">
+                      {money(salarioPorPago(e.salarioMensual, e.frecuenciaPago))}
+                    </p>
+                    <p className="text-xs text-slate-400">por pago {e.frecuenciaPago.nombre.toLowerCase()}</p>
                   </div>
                 </li>
               ))}

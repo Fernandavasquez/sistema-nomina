@@ -5,6 +5,7 @@ import { Adelanto } from '../adelantos/entities/adelanto.entity.js';
 import { ConceptoSistema, EstadoNomina, EstadoPrestamo, MetodoPago, TipoConcepto } from '../common/enums.js';
 import { today } from '../common/utils/dates.js';
 import { round2 } from '../common/utils/money.js';
+import { salarioPorPago } from '../nominas/salario.js';
 import { Empleado } from '../empleados/entities/empleado.entity.js';
 import { NominaDetalle } from '../nominas/entities/nomina-detalle.entity.js';
 import { NominaEncabezado } from '../nominas/entities/nomina-encabezado.entity.js';
@@ -345,7 +346,8 @@ export class ReportesService {
       dpi: e.dpi,
       puesto: e.puesto.nombre,
       frecuencia: e.frecuenciaPago.nombre,
-      salario: e.salarioBase,
+      salario: e.salarioMensual,
+      porPago: salarioPorPago(e.salarioMensual, e.frecuenciaPago),
       ingreso: e.fechaIngreso,
       telefono: e.telefono ?? '',
       banco: e.bancoDestino ?? 'Efectivo',
@@ -356,7 +358,7 @@ export class ReportesService {
       dinero(
         lista
           .filter((e) => e.estado === 'ACTIVO' && e.frecuenciaPago.nombre === frecuencia)
-          .reduce((s, e) => s + e.salarioBase, 0),
+          .reduce((s, e) => s + salarioPorPago(e.salarioMensual, e.frecuenciaPago), 0),
       );
 
     return {
@@ -372,7 +374,8 @@ export class ReportesService {
         { clave: 'dpi', titulo: 'DPI', ancho: 1.3 },
         { clave: 'puesto', titulo: 'Puesto', ancho: 1.2 },
         { clave: 'frecuencia', titulo: 'Pago', ancho: 0.9 },
-        { clave: 'salario', titulo: 'Salario por pago', tipo: 'dinero', ancho: 1.1 },
+        { clave: 'salario', titulo: 'Salario mensual', tipo: 'dinero', ancho: 1.1 },
+        { clave: 'porPago', titulo: 'Pago por período', tipo: 'dinero', ancho: 1.1 },
         { clave: 'ingreso', titulo: 'Ingreso', tipo: 'fecha', ancho: 0.9 },
         { clave: 'telefono', titulo: 'Teléfono', ancho: 1 },
         { clave: 'banco', titulo: 'Banco', ancho: 1.2 },

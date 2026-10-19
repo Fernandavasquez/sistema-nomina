@@ -99,7 +99,7 @@ Solo para el administrador, en **Menú → Pagos → Reportes**. Todos se pueden
 | **Pagos por fechas** | Desde / hasta (atajos: este mes, mes anterior, este año) | Total pagado a cada empleado en el rango, solo de pagos confirmados. Para contabilidad. |
 | **Adelantos** | Fechas y estado | Adelantos entregados, pendientes o ya descontados. |
 | **Cartera de préstamos** | Estado | Prestado, pagado, saldo y cuotas restantes de cada préstamo. |
-| **Listado de empleados** | Estado | Datos, puesto, salario, forma de pago y cuenta bancaria. |
+| **Listado de empleados** | Estado | Datos, puesto, salario mensual, pago por período, forma de pago y cuenta bancaria. |
 
 Todos los reportes usan la misma estructura (`backend/src/reportes/reporte.types.ts`), y un mismo código los convierte a Excel (`exceljs`) o a PDF (`pdfkit`). Para agregar un reporte nuevo solo hay que escribir el método que arma los datos.
 
@@ -132,7 +132,7 @@ El diseño original se respetó (mismas tablas y relaciones). Estas son las mejo
 | `NombreApellido` → `nombres` + `apellidos` | Permite ordenar y buscar por apellido. |
 | `Estado` de empleado como lista fija (`ACTIVO`/`INACTIVO`) | Evita valores escritos de distintas formas ("activo", "Activo "...). Lo mismo para préstamos, períodos y nóminas. |
 | Nuevos campos en empleado: `fechaIngreso`, `email` | Un empleado contratado a mitad de período no se incluye en pagos anteriores a su ingreso. |
-| `salarioBase` = **monto de cada pago** | Si es semanal, es lo que gana por semana; si es quincenal, por quincena. Así no hay que hacer conversiones. |
+| `salarioMensual` = **salario del mes** | El pago semanal o quincenal se calcula solo (ver *Cálculo del salario*). La boleta guarda el salario y los días con que se calculó, así el historial no cambia si después se sube el salario. |
 | Documentos del empleado (foto del DPI, recibo de luz) se guardan como archivos, no dentro de la BD | La BD solo guarda el nombre. Se aceptan JPG, PNG, WEBP o PDF de hasta 5 MB y **solo se descargan con sesión iniciada** porque son datos sensibles. Agregar otro documento es una línea en `backend/src/empleados/documentos.ts` más su columna. |
 | Conceptos con `esSistema` | `SUELDO_BASE`, `ADELANTO` y `PRESTAMO` los calcula el sistema y no se pueden borrar. Los demás (`BONO`, `HORAS_EXTRA`, `OTRO_DESCUENTO`...) los crea el administrador libremente. **Agregar un nuevo tipo de bono o descuento no requiere cambiar la base de datos.** |
 | `createdAt` / `updatedAt` en todas las tablas | Auditoría básica: saber cuándo se creó o modificó cada registro. |
@@ -156,11 +156,28 @@ El diseño original se respetó (mismas tablas y relaciones). Estas son las mejo
    - Quincenal → del 1 al 15 y del 16 al último día del mes (incluido febrero).
    - El sistema sugiere las fechas del siguiente período y no permite períodos que se crucen.
 2. **Procesar**: genera la nómina de cada empleado **activo** con esa frecuencia:
-   - **+ Sueldo base**
+   - **+ Sueldo**: el pago fijo de la frecuencia, o proporcional si el empleado ingresó a medio período.
+   - **− Faltas**: los días que faltó (se anotan en la boleta).
    - **− Adelantos pendientes**: se descuenta cada adelanto completo.
    - **− Cuota de cada préstamo activo**: o el saldo, si es menor que la cuota.
-3. **Revisar**: en estado PROCESADO se pueden agregar bonos o descuentos manuales a cada nómina. Si se corrige un dato (por ejemplo un adelanto), se revierte y se vuelve a procesar; los bonos manuales se conservan.
+3. **Revisar**: en estado PROCESADO se anotan los **días de falta** de cada empleado en su boleta y se pueden agregar bonos o descuentos manuales. Si se corrige un dato (por ejemplo un adelanto), se revierte y se vuelve a procesar; los bonos manuales y las faltas se conservan.
 4. **Cerrar** (solo ADMIN): confirma el pago. Recién aquí los adelantos quedan como *aplicados* y se rebaja el saldo de los préstamos; un préstamo con saldo 0 pasa a *PAGADO*. Un período cerrado ya no se puede modificar, solo anular.
+
+### Cálculo del salario
+
+Al empleado se le registra su **salario mensual**. El sistema calcula el resto:
+
+| Concepto | Regla | Ejemplo con Q3,000 al mes |
+|---|---|---|
+| Pago quincenal | mensual ÷ 2 (siempre igual) | Q1,500.00 |
+| Pago semanal | mensual × 12 ÷ 52 (siempre igual) | Q692.31 |
+| Salario diario | mensual ÷ **días reales del mes** | enero (31) Q96.77 · febrero (28) Q107.14 · abril (30) Q100.00 |
+| Descuento por falta | un salario diario por día, del mes en que termina el período | 2 faltas en enero = Q193.55 |
+| Ingreso a medio período | días trabajados desde su ingreso × diario de cada día, sin pasar del pago completo | entra el 20 de enero en la quincena 16–31: 12 × Q96.77 = Q1,161.29 |
+
+- **Faltas:** en la boleta (período en revisión) se escribe cuántos días faltó y se guarda; el descuento aparece como "Descuento por faltas". No se pueden anotar más faltas que días trabajados en el período.
+- **Empleados existentes:** al instalar este cambio, su salario "por pago" se convirtió a mensual con las mismas reglas (semanal × 52 ÷ 12, quincenal × 2), así siguen recibiendo exactamente lo mismo por pago.
+- Los topes de adelantos y cuotas de préstamos usan el pago del período (no el salario mensual).
 
 ### Forma de pago: efectivo o depósito
 
@@ -190,7 +207,7 @@ Reglas de seguridad:
 **Reglas que protegen al usuario de errores**
 
 - Un adelanto no puede superar lo que el empleado va a recibir en el siguiente pago.
-- La cuota de un préstamo no puede ser mayor al salario del período.
+- La cuota de un préstamo no puede ser mayor al pago del período.
 - No se puede cerrar un período con nóminas en negativo.
 - Solo puede haber un período PROCESADO por frecuencia a la vez, para no descontar el mismo adelanto dos veces.
 - No se puede editar ni borrar un adelanto o préstamo que ya está en una nómina en proceso o pagada.
@@ -227,7 +244,7 @@ Todos bajo `/api` y con `Authorization: Bearer <token>` (excepto el login). La l
 | Adelantos | `GET/POST /adelantos` · `GET/PATCH/DELETE /adelantos/:id` |
 | Préstamos | `GET/POST /prestamos` · `GET/PATCH/DELETE /prestamos/:id` · `PATCH /prestamos/:id/cancelar` |
 | Períodos | `GET/POST /periodos-nomina` · `GET /periodos-nomina/sugerencia` · `GET/PATCH/DELETE /periodos-nomina/:id` · `POST /periodos-nomina/:id/procesar` · `/revertir` · `/cerrar` · `/anular` · `/reemitir/:empleadoId` |
-| Nóminas | `GET /nominas` · `GET /nominas/:id` (boleta) · `POST /nominas/:id/detalles` · `DELETE /nominas/:id/detalles/:detalleId` · `PATCH /nominas/:id/metodo-pago` · `POST /nominas/:id/anular` · `POST /nominas/:id/confirmar` · `DELETE /nominas/:id` (descartar boleta nueva) |
+| Nóminas | `GET /nominas` · `GET /nominas/:id` (boleta) · `POST /nominas/:id/detalles` · `DELETE /nominas/:id/detalles/:detalleId` · `PATCH /nominas/:id/faltas` · `PATCH /nominas/:id/metodo-pago` · `POST /nominas/:id/anular` · `POST /nominas/:id/confirmar` · `DELETE /nominas/:id` (descartar boleta nueva) |
 | Dashboard | `GET /dashboard/resumen` |
 | Reportes *(ADMIN)* | `GET /reportes/planilla/:periodoId` · `/reportes/pagos` · `/reportes/adelantos` · `/reportes/prestamos` · `/reportes/empleados` — todos con `?formato=json|xlsx|pdf` |
 

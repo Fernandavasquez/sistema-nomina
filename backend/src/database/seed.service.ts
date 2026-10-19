@@ -67,6 +67,7 @@ export class SeedService implements OnApplicationBootstrap {
       { codigo: ConceptoSistema.SUELDO_BASE, nombre: 'Sueldo base', tipo: TipoConcepto.PERCEPCION },
       { codigo: ConceptoSistema.ADELANTO, nombre: 'Descuento por adelanto', tipo: TipoConcepto.DEDUCCION },
       { codigo: ConceptoSistema.PRESTAMO, nombre: 'Cuota de préstamo', tipo: TipoConcepto.DEDUCCION },
+      { codigo: ConceptoSistema.FALTAS, nombre: 'Descuento por faltas', tipo: TipoConcepto.DEDUCCION },
     ].map((c) => ({ ...c, esSistema: true, activo: true }));
     await m.upsert(ConceptoNomina, sistema, { conflictPaths: ['codigo'] });
 
@@ -112,10 +113,10 @@ export class SeedService implements OnApplicationBootstrap {
     const quincenal = await m.findOneByOrFail(TipoFrecuenciaPago, { codigo: FrecuenciaCodigo.QUINCENAL });
     const hoy = today();
     const empleados = [
-      ['Juan Carlos', 'Pérez García', '2547896541201', 0, semanal, 1000],
-      ['Luis Fernando', 'Ramírez Cruz', '1987654321012', 1, semanal, 900],
-      ['María José', 'López Méndez', '3012456789101', 2, quincenal, 2500],
-      ['Ana Lucía', 'Morales Díaz', '2654789123401', 3, quincenal, 4200],
+      ['Juan Carlos', 'Pérez García', '2547896541201', 0, semanal, 4333.33],
+      ['Luis Fernando', 'Ramírez Cruz', '1987654321012', 1, semanal, 3900],
+      ['María José', 'López Méndez', '3012456789101', 2, quincenal, 5000],
+      ['Ana Lucía', 'Morales Díaz', '2654789123401', 3, quincenal, 8400],
     ] as const;
     await m.save(
       empleados.map(([nombres, apellidos, dpi, puesto, frecuencia, salario]) =>
@@ -125,7 +126,7 @@ export class SeedService implements OnApplicationBootstrap {
           dpi,
           puestoId: puestos[puesto].id,
           frecuenciaPagoId: frecuencia.id,
-          salarioBase: salario,
+          salarioMensual: salario,
           fechaIngreso: `${hoy.slice(0, 4)}-01-02`,
           telefono: '5555' + dpi.slice(-4),
           direccion: 'Ciudad de Guatemala',

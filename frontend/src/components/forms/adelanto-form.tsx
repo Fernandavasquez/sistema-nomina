@@ -11,6 +11,7 @@ import { Button, Field, Input, Modal, ModalFooter, Textarea } from '@/components
 import { api } from '@/lib/api';
 import { money, nombreCompleto, today } from '@/lib/format';
 import type { Adelanto, Empleado } from '@/lib/types';
+import { salarioPorPago } from '@/lib/salario';
 
 const schema = z.object({
   empleadoId: z.number({ error: 'Seleccione un empleado' }).int().positive('Seleccione un empleado'),
@@ -110,7 +111,11 @@ function AdelantoForm({ open, onClose, empleado, adelanto }: Props) {
           <Field
             label="Monto (Q)"
             error={errors.monto?.message}
-            hint={seleccionado ? `Salario por pago: ${money(seleccionado.salarioBase)}` : undefined}
+            hint={
+              seleccionado
+                ? `Pago ${seleccionado.frecuenciaPago.nombre.toLowerCase()}: ${money(salarioPorPago(seleccionado.salarioMensual, seleccionado.frecuenciaPago))}`
+                : undefined
+            }
           >
             {(id) => (
               <Input

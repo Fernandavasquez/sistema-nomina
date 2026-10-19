@@ -30,6 +30,7 @@ import { api } from '@/lib/api';
 import { date, dpi, money, nombreCompleto, nombrePeriodo } from '@/lib/format';
 import type { Empleado, EstadoCuenta } from '@/lib/types';
 import { DocumentoEmpleado } from './documento-empleado';
+import { salarioPorPago } from '@/lib/salario';
 
 export function EmpleadoDetalle() {
   const { id } = useParams<{ id: string }>();
@@ -100,7 +101,11 @@ export function EmpleadoDetalle() {
       />
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <Stat label="Salario por pago" value={money(e.salarioBase)} hint={e.frecuenciaPago.nombre} />
+        <Stat
+          label="Salario mensual"
+          value={money(e.salarioMensual)}
+          hint={`Pago ${e.frecuenciaPago.nombre.toLowerCase()}: ${money(salarioPorPago(e.salarioMensual, e.frecuenciaPago))}`}
+        />
         <Stat
           label="Adelantos por descontar"
           value={money(data.totalAdelantosPendientes)}

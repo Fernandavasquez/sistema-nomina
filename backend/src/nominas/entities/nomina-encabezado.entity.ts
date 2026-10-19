@@ -1,4 +1,4 @@
-import { Column, Entity, Index, JoinColumn, ManyToOne, OneToMany, type Relation } from 'typeorm';
+import { Check, Column, Entity, Index, JoinColumn, ManyToOne, OneToMany, type Relation } from 'typeorm';
 import { BaseEntity } from '../../common/entities/base.entity.js';
 import { EstadoNomina, MetodoPago } from '../../common/enums.js';
 import { moneyColumn } from '../../common/utils/money.js';
@@ -10,6 +10,7 @@ import { NominaDetalle } from './nomina-detalle.entity.js';
 @Entity('nominas_encabezado')
 // Una boleta vigente por empleado y período; las anuladas no cuentan (se puede emitir una nueva).
 @Index('uq_nomina_periodo_empleado', ['periodoId', 'empleadoId'], { unique: true, where: `"estado" <> 'ANULADA'` })
+@Check('chk_nomina_dias_falta', '"dias_falta" >= 0 AND ("dias_laborados" IS NULL OR "dias_falta" <= "dias_laborados")')
 export class NominaEncabezado extends BaseEntity {
   @Column()
   periodoId: number;
@@ -27,6 +28,20 @@ export class NominaEncabezado extends BaseEntity {
 
   @Column({ type: 'date' })
   fechaEmision: string;
+
+  // ───── Base del cálculo (copia: no cambia si después se modifica el salario del empleado) ─────
+
+  /** Salario mensual con que se calculó la boleta (vacío en boletas anteriores al salario mensual). */
+  @Column({ ...moneyColumn, nullable: true })
+  salarioMensual: number | null;
+
+  /** Días que se le pagan: el período completo, o menos si ingresó a medio período. */
+  @Column({ type: 'int', nullable: true })
+  diasLaborados: number | null;
+
+  /** Días que faltó; cada uno descuenta un salario diario (mensual ÷ 30). */
+  @Column({ type: 'int', default: 0 })
+  diasFalta: number;
 
   @Column({ ...moneyColumn, default: 0 })
   totalPercepciones: number;

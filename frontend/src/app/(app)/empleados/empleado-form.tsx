@@ -12,7 +12,8 @@ import { z } from 'zod';
 import { Button, ButtonLink, Card, CardHeader, Field, Input, Select, Textarea } from '@/components/ui';
 import { useFrecuencias, usePuestos, useSesion } from '@/hooks/queries';
 import { api } from '@/lib/api';
-import { today } from '@/lib/format';
+import { money, today } from '@/lib/format';
+import { salarioDiario, salarioPorPago } from '@/lib/salario';
 import type { Empleado } from '@/lib/types';
 
 // Las mismas reglas que valida el backend, para avisar antes de enviar.
@@ -32,7 +33,7 @@ const schema = z.object({
   fechaIngreso: z.string().min(1, 'Ingrese la fecha de ingreso'),
   puestoId: z.number().int().positive('Seleccione un puesto'),
   frecuenciaPagoId: z.number().int().positive('Seleccione la forma de pago'),
-  salarioBase: z.number({ error: 'Ingrese el salario' }).positive('El salario debe ser mayor a 0'),
+  salarioMensual: z.number({ error: 'Ingrese el salario mensual' }).positive('El salario debe ser mayor a 0'),
   bancoDestino: z.string().max(100),
   numeroCuenta: z
     .string()
@@ -69,13 +70,19 @@ export function EmpleadoForm({ empleado }: { empleado?: Empleado }) {
       fechaIngreso: empleado?.fechaIngreso ?? today(),
       puestoId: empleado?.puestoId ?? 0,
       frecuenciaPagoId: empleado?.frecuenciaPagoId ?? 0,
-      salarioBase: empleado?.salarioBase,
+      salarioMensual: empleado?.salarioMensual,
       bancoDestino: empleado?.bancoDestino ?? '',
       numeroCuenta: empleado?.numeroCuenta ?? '',
     },
   });
 
   const frecuencia = frecuencias.data?.find((f) => f.id === watch('frecuenciaPagoId'));
+  const mensual = watch('salarioMensual');
+  const calculo =
+    mensual > 0
+      ? `${frecuencia ? `Pago ${frecuencia.nombre.toLowerCase()}: ${money(salarioPorPago(mensual, frecuencia))} · ` : ''}` +
+        `día: ${money(salarioDiario(mensual, 31))} a ${money(salarioDiario(mensual, 28))} según el mes`
+      : 'El pago semanal o quincenal se calcula solo';
 
   // Al crear un puesto desde aquí, se selecciona en cuanto aparece en la lista.
   useEffect(() => {
@@ -167,19 +174,15 @@ export function EmpleadoForm({ empleado }: { empleado?: Empleado }) {
               </Select>
             )}
           </Field>
-          <Field
-            label={`Salario por pago (Q)${frecuencia ? ` — ${frecuencia.nombre.toLowerCase()}` : ''}`}
-            error={errors.salarioBase?.message}
-            hint="Lo que recibe en cada pago, antes de descuentos"
-          >
+          <Field label="Salario mensual (Q)" error={errors.salarioMensual?.message} hint={calculo}>
             {(id) => (
               <Input
                 id={id}
                 type="number"
                 step="0.01"
                 min="0"
-                invalid={!!errors.salarioBase}
-                {...register('salarioBase', { valueAsNumber: true })}
+                invalid={!!errors.salarioMensual}
+                {...register('salarioMensual', { valueAsNumber: true })}
               />
             )}
           </Field>

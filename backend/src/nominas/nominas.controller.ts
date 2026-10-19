@@ -5,7 +5,7 @@ import { Roles } from '../common/decorators/roles.decorator.js';
 import { RolNombre } from '../common/enums.js';
 import { AnularDto } from '../periodos-nomina/dto/anular.dto.js';
 import { PeriodosNominaService } from '../periodos-nomina/periodos-nomina.service.js';
-import { AgregarDetalleDto, CambiarMetodoPagoDto, FiltroNominasDto } from './dto/nomina.dto.js';
+import { AgregarDetalleDto, CambiarMetodoPagoDto, FiltroNominasDto, RegistrarFaltasDto } from './dto/nomina.dto.js';
 import { NominasService } from './nominas.service.js';
 
 @ApiTags('Nóminas')
@@ -59,6 +59,12 @@ export class NominasController {
   @Delete(':id')
   descartar(@Param('id', ParseIntPipe) id: number) {
     return this.periodos.descartarNomina(id);
+  }
+
+  @ApiOperation({ summary: 'Anota los días que faltó el empleado y recalcula el descuento' })
+  @Patch(':id/faltas')
+  registrarFaltas(@Param('id', ParseIntPipe) id: number, @Body() dto: RegistrarFaltasDto) {
+    return this.service.registrarFaltas(id, dto);
   }
 
   @ApiOperation({ summary: 'Cambia la forma de pago de la boleta: EFECTIVO o DEPOSITO' })

@@ -61,11 +61,14 @@ export class CreateEmpleadoDto {
   @IsDateString({ strict: true }, { message: 'Fecha de ingreso inválida (use AAAA-MM-DD)' })
   fechaIngreso: string;
 
-  @ApiProperty({ example: 1500, description: 'Monto que recibe en cada pago (por semana o por quincena)' })
+  @ApiProperty({
+    example: 3000,
+    description: 'Salario mensual. El pago semanal (÷30×7) o quincenal (÷2) se calcula solo.',
+  })
   @Type(() => Number)
   @IsNumber({ maxDecimalPlaces: 2 }, { message: 'El salario debe ser un número con máximo 2 decimales' })
   @IsPositive({ message: 'El salario debe ser mayor a 0' })
-  salarioBase: number;
+  salarioMensual: number;
 
   @ApiProperty({ example: 1 })
   @Type(() => Number)

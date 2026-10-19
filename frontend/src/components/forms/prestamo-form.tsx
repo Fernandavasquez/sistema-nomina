@@ -11,6 +11,7 @@ import { Button, Field, Input, Modal, ModalFooter, Textarea } from '@/components
 import { api } from '@/lib/api';
 import { money, nombreCompleto, today } from '@/lib/format';
 import type { Empleado, Prestamo } from '@/lib/types';
+import { salarioPorPago } from '@/lib/salario';
 
 const schema = z
   .object({
@@ -118,7 +119,11 @@ function PrestamoForm({ open, onClose, empleado }: Props) {
           <Field
             label="Cuota por pago (Q)"
             error={errors.montoCuota?.message}
-            hint={seleccionado ? `Salario por pago: ${money(seleccionado.salarioBase)}` : undefined}
+            hint={
+              seleccionado
+                ? `Pago ${seleccionado.frecuenciaPago.nombre.toLowerCase()}: ${money(salarioPorPago(seleccionado.salarioMensual, seleccionado.frecuenciaPago))}`
+                : undefined
+            }
           >
             {(id) => (
               <Input

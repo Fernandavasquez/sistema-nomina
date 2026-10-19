@@ -198,6 +198,7 @@ export function PeriodoDetalle() {
             <thead>
               <tr>
                 <Th>Empleado</Th>
+                <Th className="text-center">Días</Th>
                 <Th>Forma de pago</Th>
                 <Th className="text-right">Percepciones</Th>
                 <Th className="text-right">Deducciones</Th>
@@ -216,6 +217,20 @@ export function PeriodoDetalle() {
                         {anulada && <EstadoBadge estado="ANULADA" />}
                         {n.estado === 'GENERADA' && p.estado === 'CERRADO' && <EstadoBadge estado="GENERADA" />}
                       </span>
+                    </Td>
+                    <Td className="tabular text-center whitespace-nowrap">
+                      {n.diasLaborados == null ? (
+                        <span className="text-slate-400">—</span>
+                      ) : (
+                        <>
+                          {n.diasLaborados - n.diasFalta}
+                          {n.diasFalta > 0 && (
+                            <span className={`block text-xs ${anulada ? '' : 'text-red-600'}`}>
+                              {n.diasFalta} falta{n.diasFalta === 1 ? '' : 's'}
+                            </span>
+                          )}
+                        </>
+                      )}
                     </Td>
                     <Td className="text-slate-600">
                       {puedeCambiarPago(n) ? (
@@ -257,6 +272,7 @@ export function PeriodoDetalle() {
             <tfoot>
               <tr className="bg-slate-50 font-semibold">
                 <Td>Total</Td>
+                <Td />
                 <Td />
                 <Td className="tabular text-right">{money(resumen.totalPercepciones)}</Td>
                 <Td className="tabular text-right text-red-700">{money(resumen.totalDeducciones)}</Td>

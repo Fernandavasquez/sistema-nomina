@@ -53,4 +53,5 @@ export enum ConceptoSistema {
   SUELDO_BASE = 'SUELDO_BASE',
   ADELANTO = 'ADELANTO',
   PRESTAMO = 'PRESTAMO',
+  FALTAS = 'FALTAS',
 }

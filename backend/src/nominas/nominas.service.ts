@@ -11,7 +11,7 @@ import type { AuthUser } from '../common/decorators/current-user.decorator.js';
 import { EstadoNomina, EstadoPeriodo, MetodoPago, RolNombre } from '../common/enums.js';
 import { ConceptoNomina } from '../conceptos-nomina/entities/concepto-nomina.entity.js';
 import { PeriodosNominaService } from '../periodos-nomina/periodos-nomina.service.js';
-import { AgregarDetalleDto, CambiarMetodoPagoDto, FiltroNominasDto } from './dto/nomina.dto.js';
+import { AgregarDetalleDto, CambiarMetodoPagoDto, FiltroNominasDto, RegistrarFaltasDto } from './dto/nomina.dto.js';
 import { NominaDetalle } from './entities/nomina-detalle.entity.js';
 import { NominaEncabezado } from './entities/nomina-encabezado.entity.js';
 import { datosPago, tieneCuenta } from './metodo-pago.js';
@@ -54,7 +54,7 @@ export class NominasService {
     if (!concepto || !concepto.activo) throw new BadRequestException('Concepto inexistente o inactivo');
     if (concepto.esSistema) {
       throw new BadRequestException(
-        'Los conceptos del sistema (sueldo, adelantos, préstamos) se calculan solos al procesar el período',
+        'Los conceptos del sistema (sueldo, faltas, adelantos, préstamos) se calculan solos al procesar el período',
       );
     }
 
@@ -77,6 +77,13 @@ export class NominasService {
       await manager.delete(NominaDetalle, detalleId);
       await this.periodos.recalcular(manager, nomina.id);
     });
+    return this.findOne(id);
+  }
+
+  /** Días que faltó: descuenta un salario diario (mensual ÷ días del mes) por cada uno. */
+  async registrarFaltas(id: number, { diasFalta }: RegistrarFaltasDto) {
+    await this.assertEditable(id);
+    await this.periodos.registrarFaltas(id, diasFalta);
     return this.findOne(id);
   }
 

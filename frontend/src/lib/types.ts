@@ -70,7 +70,8 @@ export interface Empleado extends Base {
   direccion: string | null;
   fechaIngreso: string;
   estado: EstadoEmpleado;
-  salarioBase: number;
+  /** Salario mensual; el pago semanal/quincenal se calcula. */
+  salarioMensual: number;
   bancoDestino: string | null;
   numeroCuenta: string | null;
   fotoDpi: string | null;
@@ -135,6 +136,10 @@ export interface Nomina extends Base, Partial<Anulacion> {
   totalPercepciones: number;
   totalDeducciones: number;
   liquidoRecibir: number;
+  /** Base del cálculo (null en boletas anteriores al salario mensual). */
+  salarioMensual: number | null;
+  diasLaborados: number | null;
+  diasFalta: number;
   estado: EstadoNomina;
   metodoPago: MetodoPago;
   /** Banco y cuenta guardados en la boleta cuando se paga por depósito. */
@@ -169,7 +174,7 @@ export interface EstadoCuenta {
 
 export interface DashboardResumen {
   empleadosActivos: number;
-  empleadosPorFrecuencia: { frecuencia: string; empleados: number; totalSalarios: number }[];
+  empleadosPorFrecuencia: { frecuencia: string; empleados: number; totalSalarios: number; totalMensual: number }[];
   adelantosPendientes: { cantidad: number; total: number };
   prestamosActivos: { cantidad: number; saldo: number };
   periodosPendientes: PeriodoNomina[];

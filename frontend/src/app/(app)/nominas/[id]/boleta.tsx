@@ -164,6 +164,8 @@ export function Boleta() {
           </div>
         </div>
 
+        <DiasBoleta nomina={n} editable={editable} />
+
         <div className="grid gap-8 py-6 sm:grid-cols-2">
           <Seccion titulo="Percepciones" lineas={percepciones} editable={editable} onQuitar={(d) => quitar.mutate(d)} />
           <Seccion titulo="Deducciones" lineas={deducciones} editable={editable} onQuitar={(d) => quitar.mutate(d)} negativo />
@@ -283,6 +285,86 @@ function Seccion({
         </ul>
       )}
     </div>
+  );
+}
+
+/**
+ * Base del cálculo: salario mensual, días trabajados y días de falta.
+ * Mientras la boleta está en revisión, las faltas se anotan aquí y el descuento se recalcula
+ * (un salario diario por falta: mensual ÷ días del mes).
+ */
+function DiasBoleta({ nomina: n, editable }: { nomina: Nomina; editable: boolean }) {
+  const queryClient = useQueryClient();
+  const [faltas, setFaltas] = useState(String(n.diasFalta));
+  const [anterior, setAnterior] = useState(n.diasFalta);
+  // Si la boleta cambia (otro usuario, reproceso), se muestra el valor guardado.
+  if (anterior !== n.diasFalta) {
+    setAnterior(n.diasFalta);
+    setFaltas(String(n.diasFalta));
+  }
+
+  const guardar = useMutation({
+    mutationFn: (diasFalta: number) => api.patch<Nomina>(`/nominas/${n.id}/faltas`, { diasFalta }),
+    onSuccess: (r) => {
+      toast.success(r.diasFalta ? `${r.diasFalta} día(s) de falta descontados` : 'Sin faltas');
+      queryClient.invalidateQueries({ queryKey: ['nominas', n.id] });
+      queryClient.invalidateQueries({ queryKey: ['periodos'] });
+    },
+  });
+
+  // Boletas anteriores al salario mensual no tienen esta información.
+  if (n.salarioMensual == null || n.diasLaborados == null) return null;
+  const maximo = n.diasLaborados;
+  const valor = Number(faltas);
+  const invalido = faltas === '' || !Number.isInteger(valor) || valor < 0 || valor > maximo;
+
+  function enviar(e: React.FormEvent) {
+    e.preventDefault();
+    if (invalido) {
+      toast.error(`Ingrese de 0 a ${maximo} días`);
+      return;
+    }
+    guardar.mutate(valor);
+  }
+
+  return (
+    <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3 border-b border-slate-200 py-4 text-sm">
+      <div>
+        <dt className="text-xs text-slate-500">Salario mensual</dt>
+        <dd className="tabular font-medium text-slate-900">{money(n.salarioMensual)}</dd>
+      </div>
+      <div>
+        <dt className="text-xs text-slate-500">Días trabajados</dt>
+        <dd className="tabular font-medium text-slate-900">{n.diasLaborados - n.diasFalta}</dd>
+      </div>
+      <div className="col-span-2 sm:col-span-1">
+        <dt className="text-xs text-slate-500">
+          <label htmlFor="dias-falta">Días de falta</label>
+        </dt>
+        <dd>
+          {editable ? (
+            <form onSubmit={enviar} className="no-print flex items-center gap-1.5">
+              <Input
+                id="dias-falta"
+                type="number"
+                inputMode="numeric"
+                min={0}
+                max={maximo}
+                step={1}
+                value={faltas}
+                onChange={(e) => setFaltas(e.target.value)}
+                invalid={invalido}
+                className="w-20"
+              />
+              <Button type="submit" size="sm" variant="secondary" loading={guardar.isPending} disabled={valor === n.diasFalta}>
+                Guardar
+              </Button>
+            </form>
+          ) : null}
+          <span className={`tabular font-medium text-slate-900 ${editable ? 'hidden print:inline' : ''}`}>{n.diasFalta}</span>
+        </dd>
+      </div>
+    </dl>
   );
 }
 

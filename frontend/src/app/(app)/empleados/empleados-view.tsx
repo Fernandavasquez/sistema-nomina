@@ -111,7 +111,7 @@ export function EmpleadosView() {
                   <Th>DPI</Th>
                   <Th>Puesto</Th>
                   <Th>Pago</Th>
-                  <Th className="text-right">Salario por pago</Th>
+                  <Th className="text-right">Salario mensual</Th>
                   <Th>Estado</Th>
                 </tr>
               </thead>
@@ -127,7 +127,7 @@ export function EmpleadosView() {
                     <Td className="tabular whitespace-nowrap text-slate-600">{dpi(e.dpi)}</Td>
                     <Td>{e.puesto.nombre}</Td>
                     <Td>{e.frecuenciaPago.nombre}</Td>
-                    <Td className="tabular text-right font-medium">{money(e.salarioBase)}</Td>
+                    <Td className="tabular text-right font-medium">{money(e.salarioMensual)}</Td>
                     <Td>
                       <EstadoBadge estado={e.estado} />
                     </Td>
