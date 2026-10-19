@@ -247,7 +247,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"nombres\": \"Pedro\",\n  \"apellidos\": \"Prueba Postman\",\n  \"dpi\": \"{{dpi}}\",\n  \"telefono\": \"55551234\",\n  \"fechaIngreso\": \"2026-01-01\",\n  \"salarioBase\": 1200,\n  \"puestoId\": \"{{puestoId}}\",\n  \"frecuenciaPagoId\": \"{{frecuenciaId}}\",\n  \"bancoDestino\": \"Banrural\",\n  \"numeroCuenta\": \"1234567890\"\n}",
+              "raw": "{\n  \"nombres\": \"Pedro\",\n  \"apellidos\": \"Prueba Postman\",\n  \"dpi\": \"{{dpi}}\",\n  \"telefono\": \"55551234\",\n  \"direccion\": \"Zona 1, Ciudad de Guatemala\",\n  \"fechaIngreso\": \"2026-01-01\",\n  \"salarioBase\": 1200,\n  \"puestoId\": \"{{puestoId}}\",\n  \"frecuenciaPagoId\": \"{{frecuenciaId}}\",\n  \"bancoDestino\": \"Banrural\",\n  \"numeroCuenta\": \"1234567890\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -2322,6 +2322,94 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('Status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Validación: teléfono y dirección son obligatorios",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/empleados",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "empleados"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombres\": \"Sin\",\n  \"apellidos\": \"Contacto\",\n  \"dpi\": \"1234567890123\",\n  \"fechaIngreso\": \"2026-01-01\",\n  \"salarioBase\": 1000,\n  \"puestoId\": 1,\n  \"frecuenciaPagoId\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400', () => pm.response.to.have.status(400));",
+                  "const m = pm.response.json().message.join(' ');",
+                  "pm.test('Pide el teléfono', () => pm.expect(m).to.include('teléfono'));",
+                  "pm.test('Pide la dirección', () => pm.expect(m).to.include('dirección'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Validación: no se puede borrar el teléfono al editar",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/empleados/{{empleadoId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "empleados",
+                "{{empleadoId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"telefono\": null,\n  \"direccion\": \"\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400', () => pm.response.to.have.status(400));"
                 ]
               }
             }

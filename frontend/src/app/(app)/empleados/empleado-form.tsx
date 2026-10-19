@@ -26,9 +26,9 @@ const schema = z.object({
   telefono: z
     .string()
     .trim()
-    .regex(/^$|^[\d\s+()-]{8,20}$/, 'Teléfono inválido'),
+    .regex(/^[\d\s+()-]{8,20}$/, 'Ingrese un teléfono válido (8 a 20 dígitos)'),
   email: z.union([z.literal(''), z.email('Correo inválido')]),
-  direccion: z.string().max(255),
+  direccion: z.string().trim().min(5, 'Ingrese la dirección (mínimo 5 caracteres)').max(255),
   fechaIngreso: z.string().min(1, 'Ingrese la fecha de ingreso'),
   puestoId: z.number().int().positive('Seleccione un puesto'),
   frecuenciaPagoId: z.number().int().positive('Seleccione la forma de pago'),
@@ -110,7 +110,7 @@ export function EmpleadoForm({ empleado }: { empleado?: Empleado }) {
           <Field label="DPI" error={errors.dpi?.message} hint="13 dígitos, puede escribirlo con espacios">
             {(id) => <Input id={id} inputMode="numeric" invalid={!!errors.dpi} {...register('dpi')} />}
           </Field>
-          <Field label="Teléfono (opcional)" error={errors.telefono?.message}>
+          <Field label="Teléfono" error={errors.telefono?.message}>
             {(id) => <Input id={id} type="tel" invalid={!!errors.telefono} {...register('telefono')} />}
           </Field>
           <Field label="Correo (opcional)" error={errors.email?.message}>
@@ -119,8 +119,8 @@ export function EmpleadoForm({ empleado }: { empleado?: Empleado }) {
           <Field label="Fecha de ingreso" error={errors.fechaIngreso?.message}>
             {(id) => <Input id={id} type="date" invalid={!!errors.fechaIngreso} {...register('fechaIngreso')} />}
           </Field>
-          <Field label="Dirección (opcional)" className="sm:col-span-2">
-            {(id) => <Textarea id={id} rows={2} {...register('direccion')} />}
+          <Field label="Dirección" error={errors.direccion?.message} className="sm:col-span-2">
+            {(id) => <Textarea id={id} rows={2} invalid={!!errors.direccion} {...register('direccion')} />}
           </Field>
         </div>
       </Card>

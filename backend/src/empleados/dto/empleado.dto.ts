@@ -16,8 +16,10 @@ import {
 import { EstadoEmpleado } from '../../common/enums.js';
 
 const trim = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value);
+/** Para campos obligatorios: null se trata como vacío, así no se puede borrar el dato al editar. */
+const requerido = ({ value }: { value: unknown }) => (value === null ? '' : trim({ value }));
 /** Convierte '' en null: un campo opcional vacío en el formulario borra el valor en vez de fallar la validación. */
-const emptyToNull = ({ value }: { value: unknown }) =>
+const emptyToNull =({ value }: { value: unknown }) =>
   typeof value === 'string' && value.trim() === '' ? null : trim({ value });
 
 export class CreateEmpleadoDto {
@@ -38,11 +40,10 @@ export class CreateEmpleadoDto {
   @Matches(/^\d{13}$/, { message: 'El DPI debe tener exactamente 13 dígitos' })
   dpi: string;
 
-  @ApiPropertyOptional({ example: '55551234' })
-  @Transform(emptyToNull)
-  @IsOptional()
-  @Matches(/^[\d\s+()-]{8,20}$/, { message: 'Teléfono inválido' })
-  telefono?: string;
+  @ApiProperty({ example: '55551234' })
+  @Transform(requerido)
+  @Matches(/^[\d\s+()-]{8,20}$/, { message: 'Ingrese un teléfono válido (8 a 20 dígitos)' })
+  telefono: string;
 
   @ApiPropertyOptional({ example: 'juan.perez@correo.com' })
   @Transform(emptyToNull)
@@ -50,12 +51,11 @@ export class CreateEmpleadoDto {
   @IsEmail({}, { message: 'Correo electrónico inválido' })
   email?: string;
 
-  @ApiPropertyOptional({ example: 'Zona 1, Ciudad de Guatemala' })
-  @Transform(emptyToNull)
-  @IsOptional()
+  @ApiProperty({ example: 'Zona 1, Ciudad de Guatemala' })
+  @Transform(requerido)
   @IsString()
-  @MaxLength(255)
-  direccion?: string;
+  @Length(5, 255, { message: 'Ingrese la dirección (5 a 255 caracteres)' })
+  direccion: string;
 
   @ApiProperty({ example: '2026-01-15' })
   @IsDateString({ strict: true }, { message: 'Fecha de ingreso inválida (use AAAA-MM-DD)' })

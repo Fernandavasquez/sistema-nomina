@@ -128,6 +128,7 @@ export class SeedService implements OnApplicationBootstrap {
           salarioBase: salario,
           fechaIngreso: `${hoy.slice(0, 4)}-01-02`,
           telefono: '5555' + dpi.slice(-4),
+          direccion: 'Ciudad de Guatemala',
           bancoDestino: 'Banco Industrial',
           numeroCuenta: '00' + dpi.slice(0, 8),
         }),
