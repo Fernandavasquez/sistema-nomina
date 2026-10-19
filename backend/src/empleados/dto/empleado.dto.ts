@@ -19,7 +19,7 @@ const trim = ({ value }: { value: unknown }) => (typeof value === 'string' ? val
 /** Para campos obligatorios: null se trata como vacío, así no se puede borrar el dato al editar. */
 const requerido = ({ value }: { value: unknown }) => (value === null ? '' : trim({ value }));
 /** Convierte '' en null: un campo opcional vacío en el formulario borra el valor en vez de fallar la validación. */
-const emptyToNull =({ value }: { value: unknown }) =>
+const emptyToNull = ({ value }: { value: unknown }) =>
   typeof value === 'string' && value.trim() === '' ? null : trim({ value });
 
 export class CreateEmpleadoDto {

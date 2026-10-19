@@ -74,6 +74,7 @@ export interface Empleado extends Base {
   bancoDestino: string | null;
   numeroCuenta: string | null;
   fotoDpi: string | null;
+  reciboLuz: string | null;
   puestoId: number;
   puesto: Puesto;
   frecuenciaPagoId: number;

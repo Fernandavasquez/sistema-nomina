@@ -8,9 +8,7 @@ import { Puesto } from '../../puestos/entities/puesto.entity.js';
 @Entity('empleados')
 // Reglas CHECK de la base de datos (creadas en la migración inicial).
 @Check('chk_empleados_salario', '"salario_base" > 0')
-@Check(
-  'chk_empleados_dpi',
-  `"dpi" ~ '^[0-9]{13}
+@Check('chk_empleados_dpi', `"dpi" ~ '^[0-9]{13}$'`)
 export class Empleado extends BaseEntity {
   @Column({ type: 'varchar', length: 100 })
   nombres: string;
@@ -48,66 +46,14 @@ export class Empleado extends BaseEntity {
   @Column({ type: 'varchar', length: 30, nullable: true })
   numeroCuenta: string | null;
 
-  /** Nombre del archivo guardado en el servidor (se descarga con autenticación). */
+  // Documentos adjuntos: nombre del archivo guardado en el servidor (se descargan solo con sesión).
+
   @Column({ type: 'varchar', length: 255, nullable: true })
   fotoDpi: string | null;
 
-  @Column()
-  puestoId: number;
-
-  @ManyToOne(() => Puesto, { eager: true, onDelete: 'RESTRICT' })
-  @JoinColumn({ name: 'puesto_id' })
-  puesto: Relation<Puesto>;
-
-  @Column()
-  frecuenciaPagoId: number;
-
-  @ManyToOne(() => TipoFrecuenciaPago, { eager: true, onDelete: 'RESTRICT' })
-  @JoinColumn({ name: 'frecuencia_pago_id' })
-  frecuenciaPago: Relation<TipoFrecuenciaPago>;
-}
-`,
-)
-export class Empleado extends BaseEntity {
-  @Column({ type: 'varchar', length: 100 })
-  nombres: string;
-
-  @Column({ type: 'varchar', length: 100 })
-  apellidos: string;
-
-  /** Documento Personal de Identificación (13 dígitos). */
-  @Column({ type: 'varchar', length: 13, unique: true })
-  dpi: string;
-
-  @Column({ type: 'varchar', length: 20, nullable: true })
-  telefono: string | null;
-
-  @Column({ type: 'varchar', length: 150, nullable: true })
-  email: string | null;
-
+  /** Recibo de luz (comprobante de domicilio), foto o PDF. */
   @Column({ type: 'varchar', length: 255, nullable: true })
-  direccion: string | null;
-
-  @Column({ type: 'date' })
-  fechaIngreso: string;
-
-  @Index()
-  @Column({ type: 'enum', enum: EstadoEmpleado, default: EstadoEmpleado.ACTIVO })
-  estado: EstadoEmpleado;
-
-  /** Salario que recibe en CADA pago (semanal o quincenal, según su frecuencia). */
-  @Column(moneyColumn)
-  salarioBase: number;
-
-  @Column({ type: 'varchar', length: 100, nullable: true })
-  bancoDestino: string | null;
-
-  @Column({ type: 'varchar', length: 30, nullable: true })
-  numeroCuenta: string | null;
-
-  /** Nombre del archivo guardado en el servidor (se descarga con autenticación). */
-  @Column({ type: 'varchar', length: 255, nullable: true })
-  fotoDpi: string | null;
+  reciboLuz: string | null;
 
   @Column()
   puestoId: number;

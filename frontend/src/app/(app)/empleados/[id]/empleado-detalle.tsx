@@ -29,7 +29,7 @@ import { useSesion } from '@/hooks/queries';
 import { api } from '@/lib/api';
 import { date, dpi, money, nombreCompleto, nombrePeriodo } from '@/lib/format';
 import type { Empleado, EstadoCuenta } from '@/lib/types';
-import { FotoDpi } from './foto-dpi';
+import { DocumentoEmpleado } from './documento-empleado';
 
 export function EmpleadoDetalle() {
   const { id } = useParams<{ id: string }>();
@@ -224,7 +224,8 @@ export function EmpleadoDetalle() {
             </dl>
           </Card>
 
-          <FotoDpi empleado={e} />
+          <DocumentoEmpleado empleado={e} tipo="foto-dpi" />
+          <DocumentoEmpleado empleado={e} tipo="recibo-luz" />
 
           <Card className="p-5">
             <p className="text-sm font-medium text-slate-900">Acciones</p>

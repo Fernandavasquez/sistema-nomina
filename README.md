@@ -70,7 +70,7 @@ Menú lateral con todas las secciones; en el celular se abre con el botón ☰.
 | Sección | Qué permite |
 |---|---|
 | **Inicio** | Resumen: empleados activos, planilla, adelantos por descontar, saldo de préstamos, pagos pendientes y últimos pagos. |
-| **Empleados** | Lista con búsqueda y filtros; ficha con estado de cuenta, historial de pagos, foto del DPI y acciones rápidas (adelanto, préstamo). |
+| **Empleados** | Lista con búsqueda y filtros; ficha con estado de cuenta, historial de pagos, documentos (foto del DPI y recibo de luz, en foto o PDF) y acciones rápidas (adelanto, préstamo). |
 | **Adelantos** | Pendientes y ya descontados; registrar, editar o eliminar mientras no se hayan descontado. |
 | **Préstamos** | Avance de pago, historial de cuotas, cambio de cuota y cancelación. |
 | **Períodos y nóminas** | Crear período con fechas sugeridas, calcular, revisar boletas, agregar bonos o descuentos y cerrar el pago. |
@@ -133,7 +133,7 @@ El diseño original se respetó (mismas tablas y relaciones). Estas son las mejo
 | `Estado` de empleado como lista fija (`ACTIVO`/`INACTIVO`) | Evita valores escritos de distintas formas ("activo", "Activo "...). Lo mismo para préstamos, períodos y nóminas. |
 | Nuevos campos en empleado: `fechaIngreso`, `email` | Un empleado contratado a mitad de período no se incluye en pagos anteriores a su ingreso. |
 | `salarioBase` = **monto de cada pago** | Si es semanal, es lo que gana por semana; si es quincenal, por quincena. Así no hay que hacer conversiones. |
-| `FotoDPI` se guarda como archivo, no dentro de la BD | La BD solo guarda el nombre. La foto **solo se descarga con sesión iniciada** porque es un dato sensible. |
+| Documentos del empleado (foto del DPI, recibo de luz) se guardan como archivos, no dentro de la BD | La BD solo guarda el nombre. Se aceptan JPG, PNG, WEBP o PDF de hasta 5 MB y **solo se descargan con sesión iniciada** porque son datos sensibles. Agregar otro documento es una línea en `backend/src/empleados/documentos.ts` más su columna. |
 | Conceptos con `esSistema` | `SUELDO_BASE`, `ADELANTO` y `PRESTAMO` los calcula el sistema y no se pueden borrar. Los demás (`BONO`, `HORAS_EXTRA`, `OTRO_DESCUENTO`...) los crea el administrador libremente. **Agregar un nuevo tipo de bono o descuento no requiere cambiar la base de datos.** |
 | `createdAt` / `updatedAt` en todas las tablas | Auditoría básica: saber cuándo se creó o modificó cada registro. |
 | Usuario: `ultimoAcceso` | Ver quién ha usado el sistema recientemente. |
@@ -223,7 +223,7 @@ Todos bajo `/api` y con `Authorization: Bearer <token>` (excepto el login). La l
 | Usuarios | `GET/POST /usuarios` · `GET/PATCH/DELETE /usuarios/:id` · `GET /roles` |
 | Puestos | `GET/POST /puestos` (incluye cantidad de empleados) · `GET/PATCH/DELETE /puestos/:id` |
 | Catálogos | `GET /frecuencias-pago` · `/conceptos-nomina` |
-| Empleados | `GET/POST /empleados` · `GET/PATCH/DELETE /empleados/:id` · `GET /empleados/:id/estado-cuenta` · `POST/GET /empleados/:id/foto-dpi` |
+| Empleados | `GET/POST /empleados` · `GET/PATCH/DELETE /empleados/:id` · `GET /empleados/:id/estado-cuenta` · `POST/GET /empleados/:id/foto-dpi` · `POST/GET /empleados/:id/recibo-luz` |
 | Adelantos | `GET/POST /adelantos` · `GET/PATCH/DELETE /adelantos/:id` |
 | Préstamos | `GET/POST /prestamos` · `GET/PATCH/DELETE /prestamos/:id` · `PATCH /prestamos/:id/cancelar` |
 | Períodos | `GET/POST /periodos-nomina` · `GET /periodos-nomina/sugerencia` · `GET/PATCH/DELETE /periodos-nomina/:id` · `POST /periodos-nomina/:id/procesar` · `/revertir` · `/cerrar` · `/anular` · `/reemitir/:empleadoId` |

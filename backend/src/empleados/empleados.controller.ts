@@ -13,13 +13,23 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { ApiBearerAuth, ApiBody, ApiConsumes, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { memoryStorage } from 'multer';
 import { Roles } from '../common/decorators/roles.decorator.js';
 import { RolNombre } from '../common/enums.js';
 import { CreateEmpleadoDto, FiltroEmpleadosDto, UpdateEmpleadoDto } from './dto/empleado.dto.js';
+import { MAX_DOCUMENTO_BYTES, type TipoDocumento } from './documentos.js';
 import { EmpleadosService } from './empleados.service.js';
+
+/** Recibe el archivo en memoria (campo "archivo") con límite de tamaño. */
+const SUBIR_ARCHIVO = FileInterceptor('archivo', {
+  storage: memoryStorage(),
+  limits: { fileSize: MAX_DOCUMENTO_BYTES },
+});
+const CUERPO_ARCHIVO = {
+  schema: { type: 'object', properties: { archivo: { type: 'string', format: 'binary' } } },
+} as const;
 
 @ApiTags('Empleados')
 @ApiBearerAuth()
@@ -58,18 +68,39 @@ export class EmpleadosController {
     return this.service.remove(id);
   }
 
+  // ───── Documentos (foto del DPI, recibo de luz) ─────
+  // Son datos sensibles: solo se descargan con sesión, nunca como archivos públicos.
+
+  @ApiOperation({ summary: 'Sube o reemplaza la foto del DPI (JPG, PNG, WEBP o PDF, máx. 5 MB)' })
   @Post(':id/foto-dpi')
   @ApiConsumes('multipart/form-data')
-  @ApiBody({ schema: { type: 'object', properties: { archivo: { type: 'string', format: 'binary' } } } })
-  @UseInterceptors(FileInterceptor('archivo', { storage: memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } }))
+  @ApiBody(CUERPO_ARCHIVO)
+  @UseInterceptors(SUBIR_ARCHIVO)
   subirFotoDpi(@Param('id', ParseIntPipe) id: number, @UploadedFile() archivo?: Express.Multer.File) {
-    return this.service.guardarFotoDpi(id, archivo);
+    return this.service.guardarDocumento(id, 'foto-dpi', archivo);
   }
 
-  /** La foto del DPI es un dato sensible: solo se descarga con token, nunca como archivo público. */
   @Get(':id/foto-dpi')
-  async verFotoDpi(@Param('id', ParseIntPipe) id: number, @Res() res: Response) {
-    const { ruta } = await this.service.rutaFotoDpi(id);
+  verFotoDpi(@Param('id', ParseIntPipe) id: number, @Res() res: Response) {
+    return this.enviarDocumento(id, 'foto-dpi', res);
+  }
+
+  @ApiOperation({ summary: 'Sube o reemplaza el recibo de luz (JPG, PNG, WEBP o PDF, máx. 5 MB)' })
+  @Post(':id/recibo-luz')
+  @ApiConsumes('multipart/form-data')
+  @ApiBody(CUERPO_ARCHIVO)
+  @UseInterceptors(SUBIR_ARCHIVO)
+  subirReciboLuz(@Param('id', ParseIntPipe) id: number, @UploadedFile() archivo?: Express.Multer.File) {
+    return this.service.guardarDocumento(id, 'recibo-luz', archivo);
+  }
+
+  @Get(':id/recibo-luz')
+  verReciboLuz(@Param('id', ParseIntPipe) id: number, @Res() res: Response) {
+    return this.enviarDocumento(id, 'recibo-luz', res);
+  }
+
+  private async enviarDocumento(id: number, tipo: TipoDocumento, res: Response) {
+    const { ruta } = await this.service.rutaDocumento(id, tipo);
     res.setHeader('Cache-Control', 'private, no-store');
     res.sendFile(ruta);
   }

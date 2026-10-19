@@ -2441,7 +2441,7 @@
     },
     {
       "name": "Empleados",
-      "description": "CRUD de empleados, foto del DPI y estado de cuenta.",
+      "description": "CRUD de empleados, documentos (foto del DPI y recibo de luz) y estado de cuenta.",
       "item": [
         {
           "name": "Listar empleados",
@@ -2761,6 +2761,100 @@
             }
           },
           "event": []
+        },
+        {
+          "name": "Subir recibo de luz",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/empleados/{{empleadoId}}/recibo-luz",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "empleados",
+                "{{empleadoId}}",
+                "recibo-luz"
+              ]
+            },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "archivo",
+                  "type": "file",
+                  "src": []
+                }
+              ]
+            },
+            "description": "Comprobante de domicilio. Seleccione una foto (JPG/PNG/WEBP) o PDF de hasta 5 MB en el campo \"archivo\". Si ya tenía uno, se reemplaza."
+          }
+        },
+        {
+          "name": "Ver recibo de luz",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/empleados/{{empleadoId}}/recibo-luz",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "empleados",
+                "{{empleadoId}}",
+                "recibo-luz"
+              ]
+            },
+            "description": "Devuelve el archivo (solo con sesión). 404 si aún no se ha subido."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Devuelve el archivo o avisa que no existe', () => pm.expect(pm.response.code).to.be.oneOf([200, 404]));",
+                  "if (pm.response.code === 200) pm.test('No se guarda en caché', () => pm.expect(pm.response.headers.get('Cache-Control')).to.include('no-store'));",
+                  "else pm.test('Mensaje claro', () => pm.expect(pm.response.json().message).to.include('recibo de luz'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Validación: recibo de luz sin archivo",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/empleados/{{empleadoId}}/recibo-luz",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "empleados",
+                "{{empleadoId}}",
+                "recibo-luz"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Pide el archivo', () => pm.expect(pm.response.json().message).to.include('archivo'));"
+                ]
+              }
+            }
+          ]
         },
         {
           "name": "Estado de cuenta",

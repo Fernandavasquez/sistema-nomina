@@ -13,15 +13,8 @@ import { NominaEncabezado } from '../nominas/entities/nomina-encabezado.entity.j
 import { Prestamo } from '../prestamos/entities/prestamo.entity.js';
 import { Puesto } from '../puestos/entities/puesto.entity.js';
 import { CreateEmpleadoDto, FiltroEmpleadosDto, UpdateEmpleadoDto } from './dto/empleado.dto.js';
+import { DOCUMENTOS, FORMATOS_DOCUMENTO, MAX_DOCUMENTO_BYTES, type TipoDocumento } from './documentos.js';
 import { Empleado } from './entities/empleado.entity.js';
-
-const TIPOS_FOTO: Record<string, string> = {
-  'image/jpeg': '.jpg',
-  'image/png': '.png',
-  'image/webp': '.webp',
-  'application/pdf': '.pdf',
-};
-const MAX_FOTO_BYTES = 5 * 1024 * 1024;
 
 /** "Pérez Muñoz" → "Perez Munoz" */
 function quitarTildes(texto: string): string {
@@ -35,7 +28,7 @@ function escaparLike(texto: string): string {
 
 @Injectable()
 export class EmpleadosService {
-  private readonly dirFotos: string;
+  private readonly dirUploads: string;
 
   constructor(
     @InjectRepository(Empleado) private readonly empleados: Repository<Empleado>,
@@ -46,7 +39,7 @@ export class EmpleadosService {
     @InjectRepository(NominaEncabezado) private readonly nominas: Repository<NominaEncabezado>,
     config: ConfigService,
   ) {
-    this.dirFotos = resolve(config.get('UPLOAD_DIR', 'uploads'), 'dpi');
+    this.dirUploads = resolve(config.get('UPLOAD_DIR', 'uploads'));
   }
 
   findAll(filtro: FiltroEmpleadosDto) {
@@ -127,7 +120,9 @@ export class EmpleadosService {
       );
     }
     await this.empleados.remove(empleado);
-    if (empleado.fotoDpi) await unlink(join(this.dirFotos, empleado.fotoDpi)).catch(() => undefined);
+    for (const tipo of Object.keys(DOCUMENTOS) as TipoDocumento[]) {
+      await this.borrarArchivo(tipo, empleado[DOCUMENTOS[tipo].columna]);
+    }
     return { message: 'Empleado eliminado' };
   }
 
@@ -158,27 +153,36 @@ export class EmpleadosService {
     };
   }
 
-  async guardarFotoDpi(id: number, archivo?: Express.Multer.File) {
+  /** Guarda (o reemplaza) un documento del empleado: foto del DPI, recibo de luz… */
+  async guardarDocumento(id: number, tipo: TipoDocumento, archivo?: Express.Multer.File) {
     const empleado = await this.findOne(id);
+    const { columna, carpeta } = DOCUMENTOS[tipo];
     if (!archivo) throw new BadRequestException('Debe enviar un archivo en el campo "archivo"');
-    const extension = TIPOS_FOTO[archivo.mimetype];
+    const extension = FORMATOS_DOCUMENTO[archivo.mimetype];
     if (!extension) throw new BadRequestException('Formato no permitido. Use JPG, PNG, WEBP o PDF');
-    if (archivo.size > MAX_FOTO_BYTES) throw new BadRequestException('El archivo no debe superar 5 MB');
+    if (archivo.size > MAX_DOCUMENTO_BYTES) throw new BadRequestException('El archivo no debe superar 5 MB');
 
-    await mkdir(this.dirFotos, { recursive: true });
+    await mkdir(join(this.dirUploads, carpeta), { recursive: true });
     // Nombre aleatorio: nunca se usa el nombre original (evita sobrescrituras y rutas maliciosas).
     const nombre = `${id}-${randomUUID()}${extension}`;
-    await writeFile(join(this.dirFotos, nombre), archivo.buffer);
+    await writeFile(join(this.dirUploads, carpeta, nombre), archivo.buffer);
 
-    if (empleado.fotoDpi) await unlink(join(this.dirFotos, empleado.fotoDpi)).catch(() => undefined);
-    await this.empleados.update(id, { fotoDpi: nombre });
+    await this.borrarArchivo(tipo, empleado[columna]);
+    await this.empleados.update(id, { [columna]: nombre });
     return this.findOne(id);
   }
 
-  async rutaFotoDpi(id: number) {
+  /** Ruta del archivo en el servidor, para enviarlo solo a quien tiene sesión. */
+  async rutaDocumento(id: number, tipo: TipoDocumento) {
     const empleado = await this.findOne(id);
-    if (!empleado.fotoDpi) throw new NotFoundException('El empleado no tiene foto de DPI');
-    return { ruta: join(this.dirFotos, empleado.fotoDpi), extension: extname(empleado.fotoDpi) };
+    const { columna, carpeta, nombre } = DOCUMENTOS[tipo];
+    const archivo = empleado[columna];
+    if (!archivo) throw new NotFoundException(`El empleado no tiene ${nombre}`);
+    return { ruta: join(this.dirUploads, carpeta, archivo), extension: extname(archivo) };
+  }
+
+  private async borrarArchivo(tipo: TipoDocumento, archivo: string | null) {
+    if (archivo) await unlink(join(this.dirUploads, DOCUMENTOS[tipo].carpeta, archivo)).catch(() => undefined);
   }
 
   private async validarReferencias(puestoId?: number, frecuenciaPagoId?: number) {
