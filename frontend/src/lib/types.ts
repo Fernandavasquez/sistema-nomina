@@ -13,6 +13,7 @@ export interface Anulacion {
   anuladoPor: { nombre: string; apellido: string; username: string } | null;
 }
 export type TipoConcepto = 'PERCEPCION' | 'DEDUCCION';
+export type MetodoPago = 'EFECTIVO' | 'DEPOSITO';
 
 interface Base {
   id: number;
@@ -134,6 +135,10 @@ export interface Nomina extends Base, Partial<Anulacion> {
   totalDeducciones: number;
   liquidoRecibir: number;
   estado: EstadoNomina;
+  metodoPago: MetodoPago;
+  /** Banco y cuenta guardados en la boleta cuando se paga por depósito. */
+  bancoDestino: string | null;
+  numeroCuenta: string | null;
   detalles?: NominaDetalle[];
 }
 
@@ -146,6 +151,8 @@ export interface PeriodoDetalle extends PeriodoNomina {
     nominasConLiquidoNegativo: number;
     boletasAnuladas: number;
     boletasPorConfirmar: number;
+    totalEfectivo: number;
+    totalDeposito: number;
   };
   nominas: Nomina[];
 }

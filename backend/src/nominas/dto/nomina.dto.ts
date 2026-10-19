@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsInt, IsNumber, IsOptional, IsPositive, IsString, MaxLength } from 'class-validator';
+import { IsEnum, IsInt, IsNumber, IsOptional, IsPositive, IsString, MaxLength } from 'class-validator';
+import { MetodoPago } from '../../common/enums.js';
 
 export class FiltroNominasDto {
   @ApiPropertyOptional()
@@ -34,4 +35,10 @@ export class AgregarDetalleDto {
   @IsString()
   @MaxLength(500)
   observacion?: string;
+}
+
+export class CambiarMetodoPagoDto {
+  @ApiProperty({ enum: MetodoPago, example: MetodoPago.EFECTIVO })
+  @IsEnum(MetodoPago, { message: 'La forma de pago debe ser EFECTIVO o DEPOSITO' })
+  metodoPago: MetodoPago;
 }

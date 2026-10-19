@@ -1,6 +1,6 @@
 import { Column, Entity, Index, JoinColumn, ManyToOne, OneToMany, type Relation } from 'typeorm';
 import { BaseEntity } from '../../common/entities/base.entity.js';
-import { EstadoNomina } from '../../common/enums.js';
+import { EstadoNomina, MetodoPago } from '../../common/enums.js';
 import { moneyColumn } from '../../common/utils/money.js';
 import { Empleado } from '../../empleados/entities/empleado.entity.js';
 import { PeriodoNomina } from '../../periodos-nomina/entities/periodo-nomina.entity.js';
@@ -39,6 +39,17 @@ export class NominaEncabezado extends BaseEntity {
 
   @Column({ type: 'enum', enum: EstadoNomina, default: EstadoNomina.GENERADA })
   estado: EstadoNomina;
+
+  /** Cómo se entrega el pago: en efectivo o por depósito bancario. */
+  @Column({ type: 'enum', enum: MetodoPago, default: MetodoPago.EFECTIVO })
+  metodoPago: MetodoPago;
+
+  /** Banco y cuenta usados en este pago (copia: no cambia si el empleado cambia de banco después). */
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  bancoDestino: string | null;
+
+  @Column({ type: 'varchar', length: 30, nullable: true })
+  numeroCuenta: string | null;
 
   @OneToMany(() => NominaDetalle, (detalle) => detalle.nomina, { cascade: true })
   detalles: Relation<NominaDetalle[]>;

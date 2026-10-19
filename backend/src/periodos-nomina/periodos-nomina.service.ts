@@ -9,6 +9,7 @@ import {
   EstadoPeriodo,
   EstadoPrestamo,
   FrecuenciaCodigo,
+  MetodoPago,
 } from '../common/enums.js';
 import { addDays, today, toDate } from '../common/utils/dates.js';
 import { round2 } from '../common/utils/money.js';
@@ -17,6 +18,7 @@ import { Empleado } from '../empleados/entities/empleado.entity.js';
 import { TipoFrecuenciaPago } from '../frecuencias-pago/entities/tipo-frecuencia-pago.entity.js';
 import { NominaDetalle } from '../nominas/entities/nomina-detalle.entity.js';
 import { NominaEncabezado } from '../nominas/entities/nomina-encabezado.entity.js';
+import { datosPago, tieneCuenta } from '../nominas/metodo-pago.js';
 import { calcularTotales } from '../nominas/nomina-calculo.js';
 import { Prestamo } from '../prestamos/entities/prestamo.entity.js';
 import { CreatePeriodoNominaDto, FiltroPeriodosDto, UpdatePeriodoNominaDto } from './dto/periodo-nomina.dto.js';
@@ -74,6 +76,12 @@ export class PeriodosNominaService {
         totalDeducciones: round2(vigentes.reduce((s, n) => s + n.totalDeducciones, 0)),
         totalLiquido: round2(vigentes.reduce((s, n) => s + n.liquidoRecibir, 0)),
         nominasConLiquidoNegativo: vigentes.filter((n) => n.liquidoRecibir < 0).length,
+        totalEfectivo: round2(
+          vigentes.filter((n) => n.metodoPago === MetodoPago.EFECTIVO).reduce((s, n) => s + n.liquidoRecibir, 0),
+        ),
+        totalDeposito: round2(
+          vigentes.filter((n) => n.metodoPago === MetodoPago.DEPOSITO).reduce((s, n) => s + n.liquidoRecibir, 0),
+        ),
         boletasAnuladas: nominas.length - vigentes.length,
         // Boletas nuevas emitidas en un período ya pagado, que falta confirmar.
         boletasPorConfirmar:
@@ -191,6 +199,15 @@ export class PeriodosNominaService {
         if (nomina) {
           // Se recalculan las líneas automáticas; los bonos/descuentos manuales se conservan.
           await manager.delete(NominaDetalle, { nominaId: nomina.id, conceptoId: In(idsConceptosSistema) });
+          // Se respeta la forma de pago elegida; en depósito se actualizan banco y cuenta
+          // (si el empleado ya no tiene cuenta registrada, pasa a efectivo).
+          if (nomina.metodoPago === MetodoPago.DEPOSITO) {
+            await manager.update(
+              NominaEncabezado,
+              nomina.id,
+              datosPago(empleado, tieneCuenta(empleado) ? MetodoPago.DEPOSITO : MetodoPago.EFECTIVO),
+            );
+          }
         } else {
           nomina = await manager.save(
             manager.create(NominaEncabezado, {
@@ -198,6 +215,7 @@ export class PeriodosNominaService {
               empleadoId: empleado.id,
               fechaEmision: today(),
               estado: EstadoNomina.GENERADA,
+              ...datosPago(empleado),
             }),
           );
         }
@@ -349,6 +367,7 @@ export class PeriodosNominaService {
           empleadoId,
           fechaEmision: today(),
           estado: EstadoNomina.GENERADA,
+          ...datosPago(empleado),
         }),
       );
       await this.generarLineas(manager, nomina.id, empleado, periodo, await this.conceptosSistema(manager));

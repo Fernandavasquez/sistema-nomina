@@ -2,7 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { InjectDataSource } from '@nestjs/typeorm';
 import { Between, DataSource, FindOptionsWhere } from 'typeorm';
 import { Adelanto } from '../adelantos/entities/adelanto.entity.js';
-import { ConceptoSistema, EstadoNomina, EstadoPrestamo, TipoConcepto } from '../common/enums.js';
+import { ConceptoSistema, EstadoNomina, EstadoPrestamo, MetodoPago, TipoConcepto } from '../common/enums.js';
 import { today } from '../common/utils/dates.js';
 import { round2 } from '../common/utils/money.js';
 import { Empleado } from '../empleados/entities/empleado.entity.js';
@@ -61,8 +61,10 @@ export class ReportesService {
         prestamos: suma((d) => codigo(d) === ConceptoSistema.PRESTAMO),
         otros: suma((d) => d.concepto.tipo === TipoConcepto.DEDUCCION && !esSistema(d)),
         liquido: n.liquidoRecibir,
-        banco: n.empleado.bancoDestino ?? 'Efectivo',
-        cuenta: n.empleado.numeroCuenta ?? '',
+        // Forma de pago y datos bancarios guardados en la boleta (no los actuales del empleado).
+        pago: n.metodoPago === MetodoPago.DEPOSITO ? 'Depósito' : 'Efectivo',
+        banco: n.metodoPago === MetodoPago.DEPOSITO ? (n.bancoDestino ?? '') : '',
+        cuenta: n.metodoPago === MetodoPago.DEPOSITO ? (n.numeroCuenta ?? '') : '',
       };
     });
 
@@ -77,18 +79,24 @@ export class ReportesService {
       { clave: 'prestamos', titulo: 'Préstamos', tipo: 'dinero', ancho: 1.1 },
       { clave: 'otros', titulo: 'Otros desc.', tipo: 'dinero', ancho: 1.1 },
       { clave: 'liquido', titulo: 'Líquido', tipo: 'dinero', ancho: 1.2 },
+      { clave: 'pago', titulo: 'Pago', ancho: 0.9 },
       { clave: 'banco', titulo: 'Banco', ancho: 1.3 },
       { clave: 'cuenta', titulo: 'Cuenta', ancho: 1.2 },
     ];
     const totales = sumar(filas, 'sueldo', 'bonos', 'adelantos', 'prestamos', 'otros', 'liquido');
 
-    // Totales por banco: sirve para preparar las transferencias o el efectivo.
-    const porBanco = new Map<string, { empleados: number; total: number }>();
+    // Totales por forma de pago: cuánto efectivo preparar y cuánto depositar en cada banco.
+    const porForma = new Map<string, { empleados: number; total: number }>();
     for (const f of filas) {
-      const b = porBanco.get(String(f.banco)) ?? { empleados: 0, total: 0 };
-      porBanco.set(String(f.banco), { empleados: b.empleados + 1, total: round2(b.total + Number(f.liquido)) });
+      const forma = f.pago === 'Efectivo' ? 'Efectivo' : `Depósito · ${f.banco}`;
+      const b = porForma.get(forma) ?? { empleados: 0, total: 0 };
+      porForma.set(forma, { empleados: b.empleados + 1, total: round2(b.total + Number(f.liquido)) });
     }
-    const filasBanco: Fila[] = [...porBanco].map(([banco, v]) => ({ banco, ...v }));
+    // Efectivo primero, luego los bancos en orden alfabético.
+    const filasForma: Fila[] = [...porForma]
+      .sort(([a], [b]) => (a === 'Efectivo' ? -1 : b === 'Efectivo' ? 1 : a.localeCompare(b)))
+      .map(([forma, v]) => ({ forma, ...v }));
+    const totalEfectivo = porForma.get('Efectivo')?.total ?? 0;
 
     const tipo = periodo.frecuenciaPago.nombre === 'Quincenal' ? 'Quincena' : 'Semana';
     return {
@@ -99,6 +107,8 @@ export class ReportesService {
         { etiqueta: 'Total percepciones', valor: dinero(totales.sueldo + totales.bonos) },
         { etiqueta: 'Total descuentos', valor: dinero(totales.adelantos + totales.prestamos + totales.otros) },
         { etiqueta: 'Total a pagar', valor: dinero(totales.liquido) },
+        { etiqueta: 'En efectivo', valor: dinero(totalEfectivo) },
+        { etiqueta: 'Por depósito', valor: dinero(round2(totales.liquido - totalEfectivo)) },
         ...(anuladas.length ? [{ etiqueta: 'Boletas anuladas', valor: String(anuladas.length) }] : []),
       ],
       columnas,
@@ -106,14 +116,14 @@ export class ReportesService {
       totales,
       anexos: [
         {
-          titulo: 'Depósitos por banco',
+          titulo: 'Total por forma de pago',
           columnas: [
-            { clave: 'banco', titulo: 'Banco', ancho: 3 },
+            { clave: 'forma', titulo: 'Forma de pago', ancho: 3 },
             { clave: 'empleados', titulo: 'Empleados', tipo: 'numero' },
-            { clave: 'total', titulo: 'Total a depositar', tipo: 'dinero', ancho: 1.5 },
+            { clave: 'total', titulo: 'Total', tipo: 'dinero', ancho: 1.5 },
           ],
-          filas: filasBanco,
-          totales: sumar(filasBanco, 'empleados', 'total'),
+          filas: filasForma,
+          totales: sumar(filasForma, 'empleados', 'total'),
         },
         ...(anuladas.length
           ? [

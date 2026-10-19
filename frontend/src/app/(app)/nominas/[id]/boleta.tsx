@@ -9,6 +9,7 @@ import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
 import { AnularModal, AvisoAnulacion } from '@/components/forms/anular-modal';
+import { SelectorMetodoPago } from '@/components/forms/metodo-pago';
 import {
   Alert,
   Button,
@@ -81,6 +82,8 @@ export function Boleta() {
   const esNuevaPorConfirmar = n.estado === 'GENERADA' && n.periodo.estado === 'CERRADO';
   const editable = n.estado === 'GENERADA' && (n.periodo.estado === 'PROCESADO' || esNuevaPorConfirmar);
   const anulable = esAdmin && n.estado === 'PAGADA' && n.periodo.estado === 'CERRADO';
+  // Forma de pago: se cambia antes de confirmar el pago; ya pagada, solo el administrador.
+  const puedeCambiarPago = n.estado === 'GENERADA' || (n.estado === 'PAGADA' && esAdmin);
   const percepciones = n.detalles?.filter((d) => d.concepto.tipo === 'PERCEPCION') ?? [];
   const deducciones = n.detalles?.filter((d) => d.concepto.tipo === 'DEDUCCION') ?? [];
   const periodo = { ...n.periodo, frecuenciaPago: n.periodo.frecuenciaPago ?? n.empleado.frecuenciaPago };
@@ -175,10 +178,17 @@ export function Boleta() {
           </div>
         </div>
 
-        <div className="mt-6 text-xs text-slate-500">
-          {n.empleado.bancoDestino
-            ? `Depósito a ${n.empleado.bancoDestino}, cuenta ${n.empleado.numeroCuenta ?? '—'}`
-            : 'Pago en efectivo'}
+        <div className="mt-6 flex flex-wrap items-center justify-between gap-3 text-sm">
+          <span className="text-slate-500">Forma de pago</span>
+          {/* En pantalla se puede cambiar; impresa muestra solo el texto. */}
+          {puedeCambiarPago ? (
+            <span className="no-print">
+              <SelectorMetodoPago nomina={n} empleado={n.empleado} />
+            </span>
+          ) : null}
+          <span className={`font-medium text-slate-900 ${puedeCambiarPago ? 'hidden print:inline' : ''}`}>
+            {n.metodoPago === 'DEPOSITO' ? `Depósito a ${n.bancoDestino ?? '—'}, cuenta ${n.numeroCuenta ?? '—'}` : 'Efectivo'}
+          </span>
         </div>
 
         {/* Solo en papel: espacio para la firma del empleado */}

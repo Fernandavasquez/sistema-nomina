@@ -24,6 +24,7 @@ import {
 } from '@/components/ui';
 import { BotonesDescarga } from '@/components/botones-descarga';
 import { AnularModal, AvisoAnulacion } from '@/components/forms/anular-modal';
+import { MetodoPagoTexto, SelectorMetodoPago } from '@/components/forms/metodo-pago';
 import { useSesion } from '@/hooks/queries';
 import { api } from '@/lib/api';
 import { date, money, nombrePeriodo } from '@/lib/format';
@@ -84,6 +85,8 @@ export function PeriodoDetalle() {
   if (!p) return null;
 
   const { resumen } = p;
+  // Forma de pago: se cambia antes de confirmar el pago; ya pagada, solo el administrador.
+  const puedeCambiarPago = (n: Nomina) => n.estado === 'GENERADA' || (n.estado === 'PAGADA' && esAdmin);
   // Boleta anulada de un empleado que aún no tiene una boleta nueva en este período.
   const sinBoletaVigente = (n: Nomina) =>
     n.estado === 'ANULADA' && !p.nominas.some((o) => o.empleadoId === n.empleadoId && o.estado !== 'ANULADA');
@@ -175,7 +178,11 @@ export function PeriodoDetalle() {
           />
           <Stat label="Percepciones" value={money(resumen.totalPercepciones)} />
           <Stat label="Deducciones" value={money(resumen.totalDeducciones)} />
-          <Stat label="Total a pagar" value={money(resumen.totalLiquido)} />
+          <Stat
+            label="Total a pagar"
+            value={money(resumen.totalLiquido)}
+            hint={`Efectivo ${money(resumen.totalEfectivo)} · Depósito ${money(resumen.totalDeposito)}`}
+          />
         </div>
       )}
 
@@ -191,7 +198,7 @@ export function PeriodoDetalle() {
             <thead>
               <tr>
                 <Th>Empleado</Th>
-                <Th>Banco / cuenta</Th>
+                <Th>Forma de pago</Th>
                 <Th className="text-right">Percepciones</Th>
                 <Th className="text-right">Deducciones</Th>
                 <Th className="text-right">Líquido a recibir</Th>
@@ -211,7 +218,11 @@ export function PeriodoDetalle() {
                       </span>
                     </Td>
                     <Td className="text-slate-600">
-                      {n.empleado?.bancoDestino ? `${n.empleado.bancoDestino} · ${n.empleado.numeroCuenta ?? ''}` : 'Efectivo'}
+                      {puedeCambiarPago(n) ? (
+                        <SelectorMetodoPago nomina={n} empleado={n.empleado} />
+                      ) : (
+                        <MetodoPagoTexto nomina={n} />
+                      )}
                     </Td>
                     <Td className={`tabular text-right ${anulada ? 'line-through' : ''}`}>{money(n.totalPercepciones)}</Td>
                     <Td className={`tabular text-right ${anulada ? 'line-through' : 'text-red-700'}`}>

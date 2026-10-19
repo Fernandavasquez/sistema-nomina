@@ -37,6 +37,12 @@ export enum EstadoNomina {
   ANULADA = 'ANULADA',
 }
 
+/** Cómo se entrega el pago de una boleta. */
+export enum MetodoPago {
+  EFECTIVO = 'EFECTIVO',
+  DEPOSITO = 'DEPOSITO',
+}
+
 export enum TipoConcepto {
   PERCEPCION = 'PERCEPCION',
   DEDUCCION = 'DEDUCCION',

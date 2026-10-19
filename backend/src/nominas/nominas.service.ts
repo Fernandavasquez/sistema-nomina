@@ -1,12 +1,20 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, FindOptionsWhere, Repository } from 'typeorm';
-import { EstadoNomina, EstadoPeriodo } from '../common/enums.js';
+import type { AuthUser } from '../common/decorators/current-user.decorator.js';
+import { EstadoNomina, EstadoPeriodo, MetodoPago, RolNombre } from '../common/enums.js';
 import { ConceptoNomina } from '../conceptos-nomina/entities/concepto-nomina.entity.js';
 import { PeriodosNominaService } from '../periodos-nomina/periodos-nomina.service.js';
-import { AgregarDetalleDto, FiltroNominasDto } from './dto/nomina.dto.js';
+import { AgregarDetalleDto, CambiarMetodoPagoDto, FiltroNominasDto } from './dto/nomina.dto.js';
 import { NominaDetalle } from './entities/nomina-detalle.entity.js';
 import { NominaEncabezado } from './entities/nomina-encabezado.entity.js';
+import { datosPago, tieneCuenta } from './metodo-pago.js';
 
 @Injectable()
 export class NominasService {
@@ -69,6 +77,27 @@ export class NominasService {
       await manager.delete(NominaDetalle, detalleId);
       await this.periodos.recalcular(manager, nomina.id);
     });
+    return this.findOne(id);
+  }
+
+  /**
+   * Cambia la forma de pago (efectivo o depósito). Antes de confirmar el pago lo puede hacer
+   * cualquier usuario; en una boleta ya pagada solo el administrador (para corregir cómo se entregó).
+   */
+  async cambiarMetodoPago(id: number, { metodoPago }: CambiarMetodoPagoDto, usuario: AuthUser) {
+    const nomina = await this.findOne(id);
+    if (nomina.estado === EstadoNomina.ANULADA) {
+      throw new ConflictException('La boleta está anulada');
+    }
+    if (nomina.estado === EstadoNomina.PAGADA && usuario.rol !== RolNombre.ADMIN) {
+      throw new ForbiddenException('Solo un administrador puede cambiar la forma de pago de una boleta ya pagada');
+    }
+    if (metodoPago === MetodoPago.DEPOSITO && !tieneCuenta(nomina.empleado)) {
+      throw new BadRequestException(
+        'El empleado no tiene banco y número de cuenta registrados. Agréguelos en su ficha para pagarle por depósito.',
+      );
+    }
+    await this.nominas.update(id, datosPago(nomina.empleado, metodoPago));
     return this.findOne(id);
   }
 
