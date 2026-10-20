@@ -1,3 +1,8 @@
+import { encabezadoEmpresa, guardarEmpresaActual } from './empresa-actual';
+
+/** Mensaje del backend cuando la empresa recordada ya no es válida para este usuario. */
+const SIN_ACCESO_EMPRESA = 'No tiene acceso a la empresa seleccionada';
+
 /**
  * Cliente HTTP del frontend. Todas las llamadas pasan por /api/backend (proxy de Next.js),
  * que agrega el token desde la cookie httpOnly.
@@ -16,7 +21,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   const isForm = body instanceof FormData;
   const res = await fetch(`/api/backend${path}`, {
     method,
-    headers: body && !isForm ? { 'Content-Type': 'application/json' } : undefined,
+    headers: { ...encabezadoEmpresa(), ...(body && !isForm ? { 'Content-Type': 'application/json' } : {}) },
     body: body === undefined ? undefined : isForm ? body : JSON.stringify(body),
   });
 
@@ -28,6 +33,11 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   }
 
   const data = res.headers.get('content-type')?.includes('application/json') ? await res.json() : null;
+  if (res.status === 403 && data?.message === SIN_ACCESO_EMPRESA) {
+    // Otro usuario en este navegador, o la empresa ya no está asignada: se vuelve a "Todas".
+    guardarEmpresaActual('todas');
+    window.location.reload();
+  }
   if (!res.ok) {
     // NestJS devuelve `message` como texto o como lista de errores de validación.
     const message = Array.isArray(data?.message) ? data.message.join('. ') : data?.message;

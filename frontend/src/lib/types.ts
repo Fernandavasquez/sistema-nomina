@@ -27,6 +27,18 @@ export interface Rol extends Base {
   isActive: boolean;
 }
 
+export interface Empresa extends Base {
+  nombre: string;
+  nit: string | null;
+  direccion: string | null;
+  telefono: string | null;
+  activo: boolean;
+}
+
+export interface EmpresaConConteo extends Empresa {
+  empleadosActivos: number;
+}
+
 export interface Usuario extends Base {
   nombre: string;
   apellido: string;
@@ -36,6 +48,8 @@ export interface Usuario extends Base {
   ultimoAcceso: string | null;
   rolId: number;
   rol: Rol;
+  /** Empresas que puede ver (el administrador ve todas). */
+  empresas?: Empresa[];
 }
 
 export interface Puesto extends Base {
@@ -76,6 +90,8 @@ export interface Empleado extends Base {
   numeroCuenta: string | null;
   fotoDpi: string | null;
   reciboLuz: string | null;
+  empresaId: number;
+  empresa: Empresa;
   puestoId: number;
   puesto: Puesto;
   frecuenciaPagoId: number;
@@ -107,6 +123,8 @@ export interface PrestamoDetalle extends Prestamo {
 }
 
 export interface PeriodoNomina extends Base, Partial<Anulacion> {
+  empresaId: number;
+  empresa: Empresa;
   frecuenciaPagoId: number;
   frecuenciaPago: FrecuenciaPago;
   anio: number;
@@ -184,9 +202,12 @@ export interface DashboardResumen {
     numeroPeriodo: number;
     fechaPago: string;
     frecuencia: string;
+    empresa: string;
     empleados: number;
     totalPagado: number;
   }[];
+  /** Empleados activos y planilla de cada empresa visible. */
+  porEmpresa: { empresaId: number; nombre: string; empleados: number; totalMensual: number; totalPorPeriodo: number }[];
 }
 
 // ───────────── Reportes (misma estructura que backend/src/reportes/reporte.types.ts) ─────────────

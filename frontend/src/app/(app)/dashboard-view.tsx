@@ -17,13 +17,14 @@ import {
   Td,
   Th,
 } from '@/components/ui';
-import { useSesion } from '@/hooks/queries';
+import { useEmpresaActual, useSesion } from '@/hooks/queries';
 import { api } from '@/lib/api';
 import { date, money, nombrePeriodo } from '@/lib/format';
 import type { DashboardResumen } from '@/lib/types';
 
 export function DashboardView() {
   const { usuario } = useSesion();
+  const { empresa, varias } = useEmpresaActual();
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['dashboard'],
     queryFn: () => api.get<DashboardResumen>('/dashboard/resumen'),
@@ -33,7 +34,9 @@ export function DashboardView() {
     <>
       <PageHeader
         title={usuario ? `Hola, ${usuario.nombre}` : 'Inicio'}
-        description="Resumen general de la nómina"
+        description={
+          empresa ? `Resumen de ${empresa.nombre}` : varias ? 'Resumen de todas las empresas' : 'Resumen general de la nómina'
+        }
         actions={
           <>
             <ButtonLink href="/empleados/nuevo" variant="secondary">
@@ -80,6 +83,32 @@ export function DashboardView() {
             />
           </div>
 
+          {!empresa && data.porEmpresa.length > 1 && (
+            <Card>
+              <CardHeader title="Por empresa" description="Empleados activos y lo que se paga a cada empresa" />
+              <Table>
+                <thead>
+                  <tr>
+                    <Th>Empresa</Th>
+                    <Th className="text-right">Empleados activos</Th>
+                    <Th className="text-right">Planilla por período</Th>
+                    <Th className="text-right">Planilla mensual</Th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.porEmpresa.map((e) => (
+                    <tr key={e.empresaId}>
+                      <Td className="font-medium text-slate-900">{e.nombre}</Td>
+                      <Td className="tabular text-right">{e.empleados}</Td>
+                      <Td className="tabular text-right">{money(e.totalPorPeriodo)}</Td>
+                      <Td className="tabular text-right font-medium">{money(e.totalMensual)}</Td>
+                    </tr>
+                  ))}
+                </tbody>
+              </Table>
+            </Card>
+          )}
+
           <div className="grid gap-6 lg:grid-cols-2">
             <Card>
               <CardHeader title="Pagos pendientes" description="Períodos abiertos o en revisión" />
@@ -104,6 +133,7 @@ export function DashboardView() {
                         <div>
                           <p className="text-sm font-medium text-slate-900">{nombrePeriodo(p)}</p>
                           <p className="text-xs text-slate-500">
+                            {!empresa && varias && `${p.empresa.nombre} · `}
                             {date(p.fechaInicio)} – {date(p.fechaFin)} · pago {date(p.fechaPago)}
                           </p>
                         </div>
@@ -136,6 +166,7 @@ export function DashboardView() {
                           <Link href={`/periodos/${p.id}`} className="font-medium text-slate-900 hover:text-emerald-700">
                             {nombrePeriodo({ ...p, frecuenciaPago: { nombre: p.frecuencia } })}
                           </Link>
+                          {!empresa && varias && <p className="text-xs text-slate-500">{p.empresa}</p>}
                         </Td>
                         <Td>{date(p.fechaPago)}</Td>
                         <Td className="tabular text-right">{p.empleados}</Td>

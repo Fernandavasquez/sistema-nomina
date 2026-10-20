@@ -1,6 +1,6 @@
 # Sistema de Nómina
 
-Sistema administrativo para gestionar **empleados**, sus **pagos semanales o quincenales**, **adelantos** y **préstamos**, con inicio de sesión y roles para un número limitado de usuarios.
+Sistema administrativo para **varias empresas** (Surtimateriales el Marfil, Transportes Andres S.A., Grupo Amher…) que gestiona **empleados**, sus **pagos semanales o quincenales**, **adelantos** y **préstamos**, con inicio de sesión y roles para un número limitado de usuarios.
 
 | Capa | Tecnología |
 |---|---|
@@ -110,6 +110,9 @@ Todos los reportes usan la misma estructura (`backend/src/reportes/reporte.types
 ```mermaid
 erDiagram
     roles ||--o{ usuarios : tiene
+    usuarios }o--o{ empresas : "puede ver"
+    empresas ||--o{ empleados : contrata
+    empresas ||--o{ periodos_nomina : paga
     puestos ||--o{ empleados : ocupa
     tipos_frecuencia_pago ||--o{ empleados : "cobra cada"
     tipos_frecuencia_pago ||--o{ periodos_nomina : agrupa
@@ -137,11 +140,25 @@ El diseño original se respetó (mismas tablas y relaciones). Estas son las mejo
 | Conceptos con `esSistema` | `SUELDO_BASE`, `ADELANTO` y `PRESTAMO` los calcula el sistema y no se pueden borrar. Los demás (`BONO`, `HORAS_EXTRA`, `OTRO_DESCUENTO`...) los crea el administrador libremente. **Agregar un nuevo tipo de bono o descuento no requiere cambiar la base de datos.** |
 | `createdAt` / `updatedAt` en todas las tablas | Auditoría básica: saber cuándo se creó o modificó cada registro. |
 | Usuario: `ultimoAcceso` | Ver quién ha usado el sistema recientemente. |
-| Restricciones `UNIQUE` y `CHECK` en la BD | Ningún DPI repetido, salarios y montos siempre positivos, saldo de préstamo nunca negativo ni mayor al total. Aunque alguien se salte la API, la base de datos lo impide. |
+| Restricciones `UNIQUE` y `CHECK` en la BD | Ningún DPI repetido dentro de una empresa, salarios y montos siempre positivos, saldo de préstamo nunca negativo ni mayor al total. Aunque alguien se salte la API, la base de datos lo impide. |
 | Un empleado con una sola nómina por período (`UNIQUE periodo + empleado`) | Imposible pagarle dos veces el mismo período. |
 | Nombres de tablas y columnas en `snake_case` | Convención estándar de PostgreSQL. |
 
 ---
+
+## Varias empresas
+
+Un solo sistema para todas las empresas del grupo.
+
+- **Selector arriba en el menú:** se elige con qué empresa trabajar, o **Todas las empresas**. Empleados, adelantos, préstamos, períodos, inicio y reportes muestran solo lo de esa empresa. Con "Todas", las listas y los reportes agregan la columna *Empresa* y el inicio muestra un resumen por empresa.
+- **Qué es de cada empresa:** empleados y períodos de pago. Adelantos, préstamos y boletas siguen al empleado o al período.
+- **Qué se comparte:** puestos y conceptos de pago (bonos, descuentos).
+- **Períodos por empresa:** cada empresa crea, procesa y cierra sus períodos por separado, con su propia numeración. Dos empresas pueden tener la misma semana en revisión al mismo tiempo.
+- **DPI:** no se repite dentro de una empresa; la misma persona sí puede estar registrada en dos empresas.
+- **Cambiar a un empleado de empresa:** desde *Editar*. Sus pagos anteriores quedan en la empresa donde se hicieron. No se permite si tiene un pago en revisión.
+- **Acceso de los usuarios:** el administrador ve todas las empresas. A cada operador se le marcan en *Usuarios* las empresas que puede ver; lo de otras empresas no le aparece ni lo puede modificar.
+- **Agregar una empresa:** *Administración → Empresas → Nueva empresa*. Una empresa con historial no se elimina, se desactiva.
+- **En la API:** la empresa elegida viaja en el encabezado `X-Empresa-Id` (`todas` o sin encabezado = todas las permitidas). Al crear empleados o períodos se puede enviar `empresaId`; si no, se usa la del encabezado.
 
 ## Cómo funciona el pago (flujo de nómina)
 
@@ -225,6 +242,8 @@ Reglas de seguridad:
 | **Anular período o boleta; confirmar boleta nueva** | ✅ | ❌ |
 | Eliminar empleados | ✅ | ❌ |
 | Puestos y conceptos de pago | ✅ | solo ver |
+| Empresas (crear, editar, desactivar) | ✅ | ❌ |
+| Empresas que puede ver | todas | las que le asigne el administrador |
 | Reportes | ✅ | ❌ |
 | Usuarios y roles | ✅ | ❌ |
 
@@ -237,6 +256,7 @@ Todos bajo `/api` y con `Authorization: Bearer <token>` (excepto el login). La l
 | Módulo | Rutas |
 |---|---|
 | Auth | `POST /auth/login` · `GET /auth/perfil` · `PATCH /auth/cambiar-password` |
+| Empresas | `GET /empresas` (las que puede ver el usuario) · `POST /empresas` · `PATCH/DELETE /empresas/:id` *(ADMIN)* |
 | Usuarios | `GET/POST /usuarios` · `GET/PATCH/DELETE /usuarios/:id` · `GET /roles` |
 | Puestos | `GET/POST /puestos` (incluye cantidad de empleados) · `GET/PATCH/DELETE /puestos/:id` |
 | Catálogos | `GET /frecuencias-pago` · `/conceptos-nomina` |

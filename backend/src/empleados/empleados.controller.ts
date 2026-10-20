@@ -16,6 +16,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { memoryStorage } from 'multer';
+import { type Alcance, AlcanceEmpresas } from '../common/decorators/alcance.decorator.js';
 import { Roles } from '../common/decorators/roles.decorator.js';
 import { RolNombre } from '../common/enums.js';
 import { CreateEmpleadoDto, FiltroEmpleadosDto, UpdateEmpleadoDto } from './dto/empleado.dto.js';
@@ -38,24 +39,24 @@ export class EmpleadosController {
   constructor(private readonly service: EmpleadosService) {}
 
   @Get()
-  findAll(@Query() filtro: FiltroEmpleadosDto) {
-    return this.service.findAll(filtro);
+  findAll(@Query() filtro: FiltroEmpleadosDto, @AlcanceEmpresas() alcance: Alcance) {
+    return this.service.findAll(filtro, alcance);
   }
 
   @Get(':id')
-  findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.service.findOne(id);
+  findOne(@Param('id', ParseIntPipe) id: number, @AlcanceEmpresas() alcance: Alcance) {
+    return this.service.findOne(id, alcance);
   }
 
   @Get(':id/estado-cuenta')
-  estadoCuenta(@Param('id', ParseIntPipe) id: number) {
-    return this.service.estadoCuenta(id);
+  estadoCuenta(@Param('id', ParseIntPipe) id: number, @AlcanceEmpresas() alcance: Alcance) {
+    return this.service.estadoCuenta(id, alcance);
   }
 
   @ApiOperation({ summary: 'Descarga la ficha del empleado en PDF (datos, estado de cuenta, pagos y documentos)' })
   @Get(':id/ficha-pdf')
-  async fichaPdf(@Param('id', ParseIntPipe) id: number, @Res() res: Response) {
-    const { pdf, nombreArchivo } = await this.service.fichaPdf(id);
+  async fichaPdf(@Param('id', ParseIntPipe) id: number, @AlcanceEmpresas() alcance: Alcance, @Res() res: Response) {
+    const { pdf, nombreArchivo } = await this.service.fichaPdf(id, alcance);
     res.set({
       'Content-Type': 'application/pdf',
       'Content-Disposition': `attachment; filename="${nombreArchivo}"`,
@@ -65,19 +66,19 @@ export class EmpleadosController {
   }
 
   @Post()
-  create(@Body() dto: CreateEmpleadoDto) {
-    return this.service.create(dto);
+  create(@Body() dto: CreateEmpleadoDto, @AlcanceEmpresas() alcance: Alcance) {
+    return this.service.create(dto, alcance);
   }
 
   @Patch(':id')
-  update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateEmpleadoDto) {
-    return this.service.update(id, dto);
+  update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateEmpleadoDto, @AlcanceEmpresas() alcance: Alcance) {
+    return this.service.update(id, dto, alcance);
   }
 
   @Roles(RolNombre.ADMIN)
   @Delete(':id')
-  remove(@Param('id', ParseIntPipe) id: number) {
-    return this.service.remove(id);
+  remove(@Param('id', ParseIntPipe) id: number, @AlcanceEmpresas() alcance: Alcance) {
+    return this.service.remove(id, alcance);
   }
 
   // ───── Documentos (foto del DPI, recibo de luz) ─────
@@ -88,13 +89,17 @@ export class EmpleadosController {
   @ApiConsumes('multipart/form-data')
   @ApiBody(CUERPO_ARCHIVO)
   @UseInterceptors(SUBIR_ARCHIVO)
-  subirFotoDpi(@Param('id', ParseIntPipe) id: number, @UploadedFile() archivo?: Express.Multer.File) {
-    return this.service.guardarDocumento(id, 'foto-dpi', archivo);
+  subirFotoDpi(
+    @Param('id', ParseIntPipe) id: number,
+    @AlcanceEmpresas() alcance: Alcance,
+    @UploadedFile() archivo?: Express.Multer.File,
+  ) {
+    return this.service.guardarDocumento(id, 'foto-dpi', alcance, archivo);
   }
 
   @Get(':id/foto-dpi')
-  verFotoDpi(@Param('id', ParseIntPipe) id: number, @Res() res: Response) {
-    return this.enviarDocumento(id, 'foto-dpi', res);
+  verFotoDpi(@Param('id', ParseIntPipe) id: number, @AlcanceEmpresas() alcance: Alcance, @Res() res: Response) {
+    return this.enviarDocumento(id, 'foto-dpi', alcance, res);
   }
 
   @ApiOperation({ summary: 'Sube o reemplaza el recibo de luz (JPG, PNG, WEBP o PDF, máx. 5 MB)' })
@@ -102,17 +107,21 @@ export class EmpleadosController {
   @ApiConsumes('multipart/form-data')
   @ApiBody(CUERPO_ARCHIVO)
   @UseInterceptors(SUBIR_ARCHIVO)
-  subirReciboLuz(@Param('id', ParseIntPipe) id: number, @UploadedFile() archivo?: Express.Multer.File) {
-    return this.service.guardarDocumento(id, 'recibo-luz', archivo);
+  subirReciboLuz(
+    @Param('id', ParseIntPipe) id: number,
+    @AlcanceEmpresas() alcance: Alcance,
+    @UploadedFile() archivo?: Express.Multer.File,
+  ) {
+    return this.service.guardarDocumento(id, 'recibo-luz', alcance, archivo);
   }
 
   @Get(':id/recibo-luz')
-  verReciboLuz(@Param('id', ParseIntPipe) id: number, @Res() res: Response) {
-    return this.enviarDocumento(id, 'recibo-luz', res);
+  verReciboLuz(@Param('id', ParseIntPipe) id: number, @AlcanceEmpresas() alcance: Alcance, @Res() res: Response) {
+    return this.enviarDocumento(id, 'recibo-luz', alcance, res);
   }
 
-  private async enviarDocumento(id: number, tipo: TipoDocumento, res: Response) {
-    const { ruta } = await this.service.rutaDocumento(id, tipo);
+  private async enviarDocumento(id: number, tipo: TipoDocumento, alcance: Alcance, res: Response) {
+    const { ruta } = await this.service.rutaDocumento(id, tipo, alcance);
     res.setHeader('Cache-Control', 'private, no-store');
     res.sendFile(ruta);
   }

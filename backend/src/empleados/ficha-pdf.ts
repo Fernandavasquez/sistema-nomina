@@ -58,7 +58,7 @@ export function fichaEmpleadoPdf(datos: DatosFicha): Promise<Buffer> {
     .font('Helvetica-Bold')
     .fontSize(9)
     .fillColor(COLOR.gris)
-    .text('SISTEMA DE NÓMINA · FICHA DEL EMPLEADO', MARGEN, MARGEN);
+    .text(`${e.empresa.nombre.toUpperCase()} · FICHA DEL EMPLEADO`, MARGEN, MARGEN);
   doc.moveDown(0.3);
   doc.font('Helvetica-Bold').fontSize(18).fillColor(COLOR.texto).text(`${e.nombres} ${e.apellidos}`);
   doc
@@ -86,6 +86,7 @@ export function fichaEmpleadoPdf(datos: DatosFicha): Promise<Buffer> {
 
   seccion(doc, 'Datos laborales y de pago');
   campos(doc, [
+    ['Empresa', e.empresa.nombre],
     ['Puesto', e.puesto.nombre],
     ['Fecha de ingreso', fechaCorta(e.fechaIngreso)],
     ['Frecuencia de pago', e.frecuenciaPago.nombre],

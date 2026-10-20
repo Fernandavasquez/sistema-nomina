@@ -1,5 +1,6 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, ParseIntPipe, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { type Alcance, AlcanceEmpresas } from '../common/decorators/alcance.decorator.js';
 import { CurrentUser, type AuthUser } from '../common/decorators/current-user.decorator.js';
 import { Roles } from '../common/decorators/roles.decorator.js';
 import { RolNombre } from '../common/enums.js';
@@ -18,32 +19,46 @@ export class NominasController {
   ) {}
 
   @Get()
-  findAll(@Query() filtro: FiltroNominasDto) {
-    return this.service.findAll(filtro);
+  findAll(@Query() filtro: FiltroNominasDto, @AlcanceEmpresas() alcance: Alcance) {
+    return this.service.findAll(filtro, alcance);
   }
 
   @ApiOperation({ summary: 'Boleta de pago con su detalle' })
   @Get(':id')
-  findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.service.findOne(id);
+  findOne(@Param('id', ParseIntPipe) id: number, @AlcanceEmpresas() alcance: Alcance) {
+    return this.service.findOne(id, alcance);
   }
 
   @ApiOperation({ summary: 'Agrega un bono o descuento manual' })
   @Post(':id/detalles')
-  agregarDetalle(@Param('id', ParseIntPipe) id: number, @Body() dto: AgregarDetalleDto) {
-    return this.service.agregarDetalle(id, dto);
+  agregarDetalle(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: AgregarDetalleDto,
+    @AlcanceEmpresas() alcance: Alcance,
+  ) {
+    return this.service.agregarDetalle(id, dto, alcance);
   }
 
   @Delete(':id/detalles/:detalleId')
-  eliminarDetalle(@Param('id', ParseIntPipe) id: number, @Param('detalleId', ParseIntPipe) detalleId: number) {
-    return this.service.eliminarDetalle(id, detalleId);
+  eliminarDetalle(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('detalleId', ParseIntPipe) detalleId: number,
+    @AlcanceEmpresas() alcance: Alcance,
+  ) {
+    return this.service.eliminarDetalle(id, detalleId, alcance);
   }
 
   @ApiOperation({ summary: 'Anula la boleta pagada de un empleado (devuelve sus adelantos y saldos)' })
   @Roles(RolNombre.ADMIN)
   @Post(':id/anular')
   @HttpCode(200)
-  anular(@Param('id', ParseIntPipe) id: number, @Body() dto: AnularDto, @CurrentUser() user: AuthUser) {
+  async anular(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: AnularDto,
+    @CurrentUser() user: AuthUser,
+    @AlcanceEmpresas() alcance: Alcance,
+  ) {
+    await this.service.findOne(id, alcance);
     return this.periodos.anularNomina(id, dto.motivo, user.id);
   }
 
@@ -51,20 +66,26 @@ export class NominasController {
   @Roles(RolNombre.ADMIN)
   @Post(':id/confirmar')
   @HttpCode(200)
-  confirmar(@Param('id', ParseIntPipe) id: number) {
+  async confirmar(@Param('id', ParseIntPipe) id: number, @AlcanceEmpresas() alcance: Alcance) {
+    await this.service.findOne(id, alcance);
     return this.periodos.confirmarNomina(id);
   }
 
   @ApiOperation({ summary: 'Descarta una boleta nueva que aún no se confirmó' })
   @Delete(':id')
-  descartar(@Param('id', ParseIntPipe) id: number) {
+  async descartar(@Param('id', ParseIntPipe) id: number, @AlcanceEmpresas() alcance: Alcance) {
+    await this.service.findOne(id, alcance);
     return this.periodos.descartarNomina(id);
   }
 
   @ApiOperation({ summary: 'Anota los días que faltó el empleado y recalcula el descuento' })
   @Patch(':id/faltas')
-  registrarFaltas(@Param('id', ParseIntPipe) id: number, @Body() dto: RegistrarFaltasDto) {
-    return this.service.registrarFaltas(id, dto);
+  registrarFaltas(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: RegistrarFaltasDto,
+    @AlcanceEmpresas() alcance: Alcance,
+  ) {
+    return this.service.registrarFaltas(id, dto, alcance);
   }
 
   @ApiOperation({ summary: 'Cambia la forma de pago de la boleta: EFECTIVO o DEPOSITO' })
@@ -73,7 +94,8 @@ export class NominasController {
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: CambiarMetodoPagoDto,
     @CurrentUser() user: AuthUser,
+    @AlcanceEmpresas() alcance: Alcance,
   ) {
-    return this.service.cambiarMetodoPago(id, dto, user);
+    return this.service.cambiarMetodoPago(id, dto, user, alcance);
   }
 }

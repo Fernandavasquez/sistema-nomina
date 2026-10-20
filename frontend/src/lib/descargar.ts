@@ -1,9 +1,11 @@
+import { encabezadoEmpresa } from './empresa-actual';
+
 /**
  * Descarga un archivo de la API (Excel, PDF) a través del proxy autenticado
  * y lo guarda con el nombre que indica el servidor.
  */
 export async function descargarArchivo(ruta: string, nombrePorDefecto: string): Promise<void> {
-  const res = await fetch(`/api/backend${ruta}`);
+  const res = await fetch(`/api/backend${ruta}`, { headers: encabezadoEmpresa() });
   if (res.status === 401) {
     window.location.assign(`/login?next=${encodeURIComponent(window.location.pathname)}`);
     return;

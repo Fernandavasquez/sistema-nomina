@@ -1,4 +1,5 @@
 import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
+import { Empresa } from '../empresas/entities/empresa.entity.js';
 import { ConfigService } from '@nestjs/config';
 import { InjectDataSource } from '@nestjs/typeorm';
 import bcrypt from 'bcryptjs';
@@ -111,6 +112,10 @@ export class SeedService implements OnApplicationBootstrap {
     );
     const semanal = await m.findOneByOrFail(TipoFrecuenciaPago, { codigo: FrecuenciaCodigo.SEMANAL });
     const quincenal = await m.findOneByOrFail(TipoFrecuenciaPago, { codigo: FrecuenciaCodigo.QUINCENAL });
+    // Las empresas las crea la migración; los empleados de ejemplo se reparten entre ellas.
+    const empresas = await m.find(Empresa, { order: { id: 'ASC' } });
+    if (!empresas.length) empresas.push(await m.save(m.create(Empresa, { nombre: 'Empresa principal' })));
+    const empresa = (i: number) => empresas[i % empresas.length].id;
     const hoy = today();
     const empleados = [
       ['Juan Carlos', 'Pérez García', '2547896541201', 0, semanal, 4333.33],
@@ -119,8 +124,9 @@ export class SeedService implements OnApplicationBootstrap {
       ['Ana Lucía', 'Morales Díaz', '2654789123401', 3, quincenal, 8400],
     ] as const;
     await m.save(
-      empleados.map(([nombres, apellidos, dpi, puesto, frecuencia, salario]) =>
+      empleados.map(([nombres, apellidos, dpi, puesto, frecuencia, salario], i) =>
         m.create(Empleado, {
+          empresaId: empresa(i === 0 ? 0 : i - 1),
           nombres,
           apellidos,
           dpi,

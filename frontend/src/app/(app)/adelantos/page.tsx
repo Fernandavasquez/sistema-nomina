@@ -23,8 +23,12 @@ import {
 import { api, qs } from '@/lib/api';
 import { date, money, nombreCompleto } from '@/lib/format';
 import type { Adelanto } from '@/lib/types';
+import { useEmpresaActual } from '@/hooks/queries';
 
 export default function AdelantosPage() {
+  // Con "Todas las empresas" se indica la empresa de cada empleado.
+  const { seleccion: empresaMenu, varias } = useEmpresaActual();
+  const verEmpresa = varias && empresaMenu === 'todas';
   const queryClient = useQueryClient();
   const [aplicado, setAplicado] = useState('false');
   const [nuevo, setNuevo] = useState(false);
@@ -101,6 +105,7 @@ export default function AdelantosPage() {
                     <Link href={`/empleados/${a.empleadoId}`} className="font-medium text-slate-900 hover:text-emerald-700">
                       {nombreCompleto(a.empleado)}
                     </Link>
+                    {verEmpresa && <p className="text-xs text-slate-500">{a.empleado?.empresa.nombre}</p>}
                   </Td>
                   <Td className="max-w-xs truncate text-slate-600">{a.observacion ?? '—'}</Td>
                   <Td className="tabular text-right font-medium">{money(a.monto)}</Td>

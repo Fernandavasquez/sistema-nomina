@@ -1,7 +1,8 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import bcrypt from 'bcryptjs';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
+import { Empresa } from '../empresas/entities/empresa.entity.js';
 import { Rol } from '../roles/entities/rol.entity.js';
 import { CreateUsuarioDto } from './dto/create-usuario.dto.js';
 import { UpdateUsuarioDto } from './dto/update-usuario.dto.js';
@@ -12,14 +13,15 @@ export class UsuariosService {
   constructor(
     @InjectRepository(Usuario) private readonly usuarios: Repository<Usuario>,
     @InjectRepository(Rol) private readonly roles: Repository<Rol>,
+    @InjectRepository(Empresa) private readonly empresas: Repository<Empresa>,
   ) {}
 
   findAll() {
-    return this.usuarios.find({ order: { nombre: 'ASC', apellido: 'ASC' } });
+    return this.usuarios.find({ relations: { empresas: true }, order: { nombre: 'ASC', apellido: 'ASC' } });
   }
 
   async findOne(id: number) {
-    const usuario = await this.usuarios.findOne({ where: { id } });
+    const usuario = await this.usuarios.findOne({ where: { id }, relations: { empresas: true } });
     if (!usuario) throw new NotFoundException(`Usuario ${id} no encontrado`);
     return usuario;
   }
@@ -27,7 +29,12 @@ export class UsuariosService {
   async create(dto: CreateUsuarioDto) {
     await this.assertRol(dto.rolId);
     await this.assertUnico(dto.username, dto.email);
-    const usuario = this.usuarios.create({ ...dto, password: await bcrypt.hash(dto.password, 10) });
+    const { empresaIds, ...datos } = dto;
+    const usuario = this.usuarios.create({
+      ...datos,
+      password: await bcrypt.hash(dto.password, 10),
+      empresas: await this.buscarEmpresas(empresaIds ?? []),
+    });
     const { id } = await this.usuarios.save(usuario);
     return this.findOne(id);
   }
@@ -40,8 +47,9 @@ export class UsuariosService {
     if (dto.rolId) await this.assertRol(dto.rolId);
     await this.assertUnico(dto.username, dto.email, id);
 
-    const { password, ...cambios } = dto;
+    const { password, empresaIds, ...cambios } = dto;
     Object.assign(usuario, cambios);
+    if (empresaIds) usuario.empresas = await this.buscarEmpresas(empresaIds);
     if (password) usuario.password = await bcrypt.hash(password, 10);
     // Evita que TypeORM intente guardar la relación cargada en lugar de rolId.
     const { rol: _rol, ...datos } = usuario;
@@ -54,6 +62,13 @@ export class UsuariosService {
     const usuario = await this.findOne(id);
     await this.usuarios.remove(usuario);
     return { message: 'Usuario eliminado' };
+  }
+
+  private async buscarEmpresas(ids: number[]) {
+    if (!ids.length) return [];
+    const empresas = await this.empresas.findBy({ id: In(ids) });
+    if (empresas.length !== new Set(ids).size) throw new BadRequestException('Alguna de las empresas no existe');
+    return empresas;
   }
 
   private async assertRol(rolId: number) {

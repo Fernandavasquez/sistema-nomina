@@ -1,5 +1,6 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, ParseIntPipe, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { type Alcance, AlcanceEmpresas } from '../common/decorators/alcance.decorator.js';
 import { CurrentUser, type AuthUser } from '../common/decorators/current-user.decorator.js';
 import { Roles } from '../common/decorators/roles.decorator.js';
 import { RolNombre } from '../common/enums.js';
@@ -19,47 +20,53 @@ export class PeriodosNominaController {
   constructor(private readonly service: PeriodosNominaService) {}
 
   @Get()
-  findAll(@Query() filtro: FiltroPeriodosDto) {
-    return this.service.findAll(filtro);
+  findAll(@Query() filtro: FiltroPeriodosDto, @AlcanceEmpresas() alcance: Alcance) {
+    return this.service.findAll(filtro, alcance);
   }
 
   @ApiOperation({ summary: 'Sugiere las fechas del siguiente período para una frecuencia' })
   @Get('sugerencia')
-  sugerencia(@Query() { frecuenciaPagoId }: SugerenciaPeriodoDto) {
-    return this.service.sugerencia(frecuenciaPagoId);
+  sugerencia(@Query() { frecuenciaPagoId, empresaId }: SugerenciaPeriodoDto, @AlcanceEmpresas() alcance: Alcance) {
+    return this.service.sugerencia(frecuenciaPagoId, alcance, empresaId);
   }
 
   @Get(':id')
-  detalle(@Param('id', ParseIntPipe) id: number) {
-    return this.service.detalle(id);
+  detalle(@Param('id', ParseIntPipe) id: number, @AlcanceEmpresas() alcance: Alcance) {
+    return this.service.detalle(id, alcance);
   }
 
   @Post()
-  create(@Body() dto: CreatePeriodoNominaDto) {
-    return this.service.create(dto);
+  create(@Body() dto: CreatePeriodoNominaDto, @AlcanceEmpresas() alcance: Alcance) {
+    return this.service.create(dto, alcance);
   }
 
   @Patch(':id')
-  update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdatePeriodoNominaDto) {
-    return this.service.update(id, dto);
+  update(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdatePeriodoNominaDto,
+    @AlcanceEmpresas() alcance: Alcance,
+  ) {
+    return this.service.update(id, dto, alcance);
   }
 
   @Delete(':id')
-  remove(@Param('id', ParseIntPipe) id: number) {
-    return this.service.remove(id);
+  remove(@Param('id', ParseIntPipe) id: number, @AlcanceEmpresas() alcance: Alcance) {
+    return this.service.remove(id, alcance);
   }
 
   @ApiOperation({ summary: 'Calcula las nóminas del período (ABIERTO → PROCESADO)' })
   @Post(':id/procesar')
   @HttpCode(200)
-  procesar(@Param('id', ParseIntPipe) id: number) {
+  async procesar(@Param('id', ParseIntPipe) id: number, @AlcanceEmpresas() alcance: Alcance) {
+    await this.service.findOne(id, alcance);
     return this.service.procesar(id);
   }
 
   @ApiOperation({ summary: 'Elimina las nóminas calculadas (PROCESADO → ABIERTO)' })
   @Post(':id/revertir')
   @HttpCode(200)
-  revertir(@Param('id', ParseIntPipe) id: number) {
+  async revertir(@Param('id', ParseIntPipe) id: number, @AlcanceEmpresas() alcance: Alcance) {
+    await this.service.findOne(id, alcance);
     return this.service.revertir(id);
   }
 
@@ -67,7 +74,8 @@ export class PeriodosNominaController {
   @Roles(RolNombre.ADMIN)
   @Post(':id/cerrar')
   @HttpCode(200)
-  cerrar(@Param('id', ParseIntPipe) id: number) {
+  async cerrar(@Param('id', ParseIntPipe) id: number, @AlcanceEmpresas() alcance: Alcance) {
+    await this.service.findOne(id, alcance);
     return this.service.cerrar(id);
   }
 
@@ -75,13 +83,24 @@ export class PeriodosNominaController {
   @Roles(RolNombre.ADMIN)
   @Post(':id/anular')
   @HttpCode(200)
-  anular(@Param('id', ParseIntPipe) id: number, @Body() dto: AnularDto, @CurrentUser() user: AuthUser) {
+  async anular(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: AnularDto,
+    @CurrentUser() user: AuthUser,
+    @AlcanceEmpresas() alcance: Alcance,
+  ) {
+    await this.service.findOne(id, alcance);
     return this.service.anular(id, dto.motivo, user.id);
   }
 
   @ApiOperation({ summary: 'Emite una boleta nueva para un empleado cuya boleta se anuló en este período' })
   @Post(':id/reemitir/:empleadoId')
-  reemitir(@Param('id', ParseIntPipe) id: number, @Param('empleadoId', ParseIntPipe) empleadoId: number) {
+  async reemitir(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('empleadoId', ParseIntPipe) empleadoId: number,
+    @AlcanceEmpresas() alcance: Alcance,
+  ) {
+    await this.service.findOne(id, alcance);
     return this.service.reemitir(id, empleadoId);
   }
 }

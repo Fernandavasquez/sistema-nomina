@@ -17,6 +17,9 @@ async function handler(request: NextRequest, ctx: RouteContext<'/api/backend/[..
   const headers = new Headers({ Authorization: `Bearer ${token}`, 'X-Forwarded-For': forwardedFor(request) });
   const contentType = request.headers.get('content-type');
   if (contentType) headers.set('Content-Type', contentType);
+  // Empresa elegida en el selector del menú.
+  const empresa = request.headers.get('x-empresa-id');
+  if (empresa) headers.set('X-Empresa-Id', empresa);
 
   const hasBody = !['GET', 'HEAD'].includes(request.method);
   let res: Response;

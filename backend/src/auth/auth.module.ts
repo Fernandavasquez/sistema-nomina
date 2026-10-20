@@ -1,3 +1,4 @@
+import { Empresa } from '../empresas/entities/empresa.entity.js';
 import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtModule, JwtModuleOptions } from '@nestjs/jwt';
@@ -10,7 +11,7 @@ import { JwtStrategy } from './jwt.strategy.js';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Usuario]),
+    TypeOrmModule.forFeature([Usuario, Empresa]),
     PassportModule,
     JwtModule.registerAsync({
       inject: [ConfigService],

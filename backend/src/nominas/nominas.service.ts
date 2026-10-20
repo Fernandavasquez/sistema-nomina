@@ -6,7 +6,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
-import { DataSource, FindOptionsWhere, Repository } from 'typeorm';
+import { DataSource, FindOptionsWhere, In, Repository } from 'typeorm';
+import { type Alcance, assertAccesoEmpresa } from '../common/decorators/alcance.decorator.js';
 import type { AuthUser } from '../common/decorators/current-user.decorator.js';
 import { EstadoNomina, EstadoPeriodo, MetodoPago, RolNombre } from '../common/enums.js';
 import { ConceptoNomina } from '../conceptos-nomina/entities/concepto-nomina.entity.js';
@@ -25,8 +26,8 @@ export class NominasService {
     private readonly periodos: PeriodosNominaService,
   ) {}
 
-  findAll(filtro: FiltroNominasDto) {
-    const where: FindOptionsWhere<NominaEncabezado> = {};
+  findAll(filtro: FiltroNominasDto, alcance: Alcance) {
+    const where: FindOptionsWhere<NominaEncabezado> = { periodo: { empresaId: In(alcance.ids) } };
     if (filtro.periodoId) where.periodoId = filtro.periodoId;
     if (filtro.empleadoId) where.empleadoId = filtro.empleadoId;
     return this.nominas.find({
@@ -37,19 +38,21 @@ export class NominasService {
   }
 
   /** Boleta completa: encabezado, empleado, período y cada línea con su concepto. */
-  async findOne(id: number) {
+  /** Con `alcance`, una boleta de una empresa a la que el usuario no tiene acceso no se encuentra. */
+  async findOne(id: number, alcance?: Alcance) {
     const nomina = await this.nominas.findOne({
       where: { id },
-      relations: { empleado: true, periodo: true, detalles: true, anuladoPor: true },
+      relations: { empleado: true, periodo: { empresa: true, frecuenciaPago: true }, detalles: true, anuladoPor: true },
     });
     if (!nomina) throw new NotFoundException(`Nómina ${id} no encontrada`);
+    if (alcance) assertAccesoEmpresa(alcance, nomina.periodo.empresaId, `Nómina ${id} no encontrada`);
     // Percepciones primero, luego deducciones.
     nomina.detalles.sort((a, b) => a.concepto.tipo.localeCompare(b.concepto.tipo) * -1 || a.id - b.id);
     return nomina;
   }
 
-  async agregarDetalle(id: number, dto: AgregarDetalleDto) {
-    const nomina = await this.assertEditable(id);
+  async agregarDetalle(id: number, dto: AgregarDetalleDto, alcance: Alcance) {
+    const nomina = await this.assertEditable(id, alcance);
     const concepto = await this.conceptos.findOneBy({ id: dto.conceptoId });
     if (!concepto || !concepto.activo) throw new BadRequestException('Concepto inexistente o inactivo');
     if (concepto.esSistema) {
@@ -65,8 +68,8 @@ export class NominasService {
     return this.findOne(id);
   }
 
-  async eliminarDetalle(id: number, detalleId: number) {
-    const nomina = await this.assertEditable(id);
+  async eliminarDetalle(id: number, detalleId: number, alcance: Alcance) {
+    const nomina = await this.assertEditable(id, alcance);
     const detalle = nomina.detalles.find((d) => d.id === detalleId);
     if (!detalle) throw new NotFoundException(`La línea ${detalleId} no pertenece a la nómina ${id}`);
     if (detalle.concepto.esSistema) {
@@ -81,8 +84,8 @@ export class NominasService {
   }
 
   /** Días que faltó: descuenta un salario diario (mensual ÷ días del mes) por cada uno. */
-  async registrarFaltas(id: number, { diasFalta }: RegistrarFaltasDto) {
-    await this.assertEditable(id);
+  async registrarFaltas(id: number, { diasFalta }: RegistrarFaltasDto, alcance: Alcance) {
+    await this.assertEditable(id, alcance);
     await this.periodos.registrarFaltas(id, diasFalta);
     return this.findOne(id);
   }
@@ -91,8 +94,8 @@ export class NominasService {
    * Cambia la forma de pago (efectivo o depósito). Antes de confirmar el pago lo puede hacer
    * cualquier usuario; en una boleta ya pagada solo el administrador (para corregir cómo se entregó).
    */
-  async cambiarMetodoPago(id: number, { metodoPago }: CambiarMetodoPagoDto, usuario: AuthUser) {
-    const nomina = await this.findOne(id);
+  async cambiarMetodoPago(id: number, { metodoPago }: CambiarMetodoPagoDto, usuario: AuthUser, alcance: Alcance) {
+    const nomina = await this.findOne(id, alcance);
     if (nomina.estado === EstadoNomina.ANULADA) {
       throw new ConflictException('La boleta está anulada');
     }
@@ -108,8 +111,8 @@ export class NominasService {
     return this.findOne(id);
   }
 
-  private async assertEditable(id: number) {
-    const nomina = await this.findOne(id);
+  private async assertEditable(id: number, alcance: Alcance) {
+    const nomina = await this.findOne(id, alcance);
     // Editable: boletas en revisión, o boletas nuevas emitidas en un período ya pagado (antes de confirmarlas).
     const periodoEditable = [EstadoPeriodo.PROCESADO, EstadoPeriodo.CERRADO].includes(nomina.periodo.estado);
     if (nomina.estado !== EstadoNomina.GENERADA || !periodoEditable) {

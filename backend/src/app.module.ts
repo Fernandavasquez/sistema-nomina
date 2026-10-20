@@ -14,6 +14,7 @@ import { DashboardModule } from './dashboard/dashboard.module.js';
 import { SeedService } from './database/seed.service.js';
 import { buildTypeOrmOptions } from './database/typeorm.options.js';
 import { EmpleadosModule } from './empleados/empleados.module.js';
+import { EmpresasModule } from './empresas/empresas.module.js';
 import { FrecuenciasPagoModule } from './frecuencias-pago/frecuencias-pago.module.js';
 import { NominasModule } from './nominas/nominas.module.js';
 import { PeriodosNominaModule } from './periodos-nomina/periodos-nomina.module.js';
@@ -37,6 +38,7 @@ import { UsuariosModule } from './usuarios/usuarios.module.js';
     AuthModule,
     UsuariosModule,
     RolesModule,
+    EmpresasModule,
     PuestosModule,
     FrecuenciasPagoModule,
     ConceptosNominaModule,

@@ -1,9 +1,11 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useCallback, useSyncExternalStore } from 'react';
 import { useHidratado } from '@/hooks/use-hidratado';
 import { api } from '@/lib/api';
-import type { ConceptoNomina, FrecuenciaPago, Puesto, Usuario } from '@/lib/types';
+import { guardarEmpresaActual, leerEmpresaActual, type SeleccionEmpresa, suscribirEmpresaActual } from '@/lib/empresa-actual';
+import type { ConceptoNomina, EmpresaConConteo, FrecuenciaPago, Puesto, Usuario } from '@/lib/types';
 
 /** Usuario que inició sesión (con su rol). */
 export function useSesion() {
@@ -37,4 +39,55 @@ export function useConceptos() {
     queryFn: () => api.get<ConceptoNomina[]>('/conceptos-nomina'),
     staleTime: 5 * 60_000,
   });
+}
+
+// ───── Empresas ─────
+
+/** Empresas que el usuario puede ver (el administrador, todas), con sus empleados activos. */
+export function useEmpresas() {
+  return useQuery({
+    queryKey: ['empresas'],
+    queryFn: () => api.get<EmpresaConConteo[]>('/empresas'),
+    staleTime: 5 * 60_000,
+  });
+}
+
+/**
+ * Empresa elegida en el selector del menú.
+ * - `seleccion`: el id de la empresa, o 'todas'.
+ * - Si el usuario tiene una sola empresa, siempre es esa.
+ * - `cambiar` guarda la elección y vuelve a cargar los datos de la pantalla.
+ */
+export function useEmpresaActual() {
+  const queryClient = useQueryClient();
+  const guardada = useSyncExternalStore(suscribirEmpresaActual, leerEmpresaActual, () => 'todas' as const);
+  const { data, isLoading } = useEmpresas();
+  const empresas = data?.filter((e) => e.activo) ?? [];
+
+  let seleccion: SeleccionEmpresa = guardada;
+  if (data) {
+    if (seleccion !== 'todas' && !empresas.some((e) => e.id === seleccion)) seleccion = 'todas';
+    if (seleccion === 'todas' && empresas.length === 1) seleccion = empresas[0].id;
+  }
+
+  const cambiar = useCallback(
+    (valor: SeleccionEmpresa) => {
+      if (valor === leerEmpresaActual()) return;
+      guardarEmpresaActual(valor);
+      // Todo lo que se muestra depende de la empresa: se vuelve a pedir.
+      queryClient.resetQueries({ predicate: (q) => q.queryKey[0] !== 'empresas' && q.queryKey[0] !== 'perfil' });
+    },
+    [queryClient],
+  );
+
+  return {
+    seleccion,
+    /** La que se debe guardar si la recordada ya no es válida. */
+    corregir: data && seleccion !== guardada ? seleccion : null,
+    empresa: seleccion === 'todas' ? null : (empresas.find((e) => e.id === seleccion) ?? null),
+    empresas,
+    varias: empresas.length > 1,
+    cargando: isLoading,
+    cambiar,
+  };
 }

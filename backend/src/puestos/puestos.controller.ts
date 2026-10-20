@@ -1,5 +1,6 @@
 import { Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { type Alcance, AlcanceEmpresas } from '../common/decorators/alcance.decorator.js';
 import { Roles } from '../common/decorators/roles.decorator.js';
 import { RolNombre } from '../common/enums.js';
 import { CreatePuestoDto, UpdatePuestoDto } from './dto/puesto.dto.js';
@@ -13,8 +14,8 @@ export class PuestosController {
 
   @ApiOperation({ summary: 'Lista de puestos con la cantidad de empleados de cada uno' })
   @Get()
-  findAll() {
-    return this.service.findAll();
+  findAll(@AlcanceEmpresas() alcance: Alcance) {
+    return this.service.findAll(alcance);
   }
 
   @Get(':id')

@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { FindOptionsWhere, Repository } from 'typeorm';
+import { FindOptionsWhere, In, Repository } from 'typeorm';
+import { type Alcance, assertAccesoEmpresa } from '../common/decorators/alcance.decorator.js';
 import { EstadoEmpleado, EstadoNomina, EstadoPrestamo } from '../common/enums.js';
 import { today } from '../common/utils/dates.js';
 import { Empleado } from '../empleados/entities/empleado.entity.js';
@@ -17,8 +18,8 @@ export class PrestamosService {
     @InjectRepository(NominaDetalle) private readonly detalles: Repository<NominaDetalle>,
   ) {}
 
-  findAll(filtro: FiltroPrestamosDto) {
-    const where: FindOptionsWhere<Prestamo> = {};
+  findAll(filtro: FiltroPrestamosDto, alcance: Alcance) {
+    const where: FindOptionsWhere<Prestamo> = { empleado: { empresaId: In(alcance.ids) } };
     if (filtro.empleadoId) where.empleadoId = filtro.empleadoId;
     if (filtro.estado) where.estado = filtro.estado;
     return this.prestamos.find({
@@ -28,15 +29,16 @@ export class PrestamosService {
     });
   }
 
-  async findOne(id: number) {
+  async findOne(id: number, alcance?: Alcance) {
     const prestamo = await this.prestamos.findOne({ where: { id }, relations: { empleado: true } });
     if (!prestamo) throw new NotFoundException(`Préstamo ${id} no encontrado`);
+    if (alcance) assertAccesoEmpresa(alcance, prestamo.empleado.empresaId, `Préstamo ${id} no encontrado`);
     return prestamo;
   }
 
   /** Préstamo + historial de cuotas descontadas en nóminas (pagadas o en proceso). */
-  async detalle(id: number) {
-    const prestamo = await this.findOne(id);
+  async detalle(id: number, alcance: Alcance) {
+    const prestamo = await this.findOne(id, alcance);
     const abonos = await this.detalles.find({
       where: { prestamoId: id },
       relations: { nomina: { periodo: true } },
@@ -54,9 +56,10 @@ export class PrestamosService {
     };
   }
 
-  async create(dto: CreatePrestamoDto) {
+  async create(dto: CreatePrestamoDto, alcance: Alcance) {
     const empleado = await this.empleados.findOneBy({ id: dto.empleadoId });
-    if (!empleado) throw new BadRequestException(`El empleado ${dto.empleadoId} no existe`);
+    if (!empleado || !alcance.permitidas.includes(empleado.empresaId))
+      throw new BadRequestException(`El empleado ${dto.empleadoId} no existe`);
     if (empleado.estado !== EstadoEmpleado.ACTIVO) {
       throw new BadRequestException('No se pueden otorgar préstamos a un empleado inactivo');
     }
@@ -73,8 +76,8 @@ export class PrestamosService {
     return this.findOne(id);
   }
 
-  async update(id: number, dto: UpdatePrestamoDto) {
-    const prestamo = await this.findOne(id);
+  async update(id: number, dto: UpdatePrestamoDto, alcance: Alcance) {
+    const prestamo = await this.findOne(id, alcance);
     if (prestamo.estado !== EstadoPrestamo.ACTIVO) {
       throw new ConflictException('Solo se pueden modificar préstamos activos');
     }
@@ -90,8 +93,8 @@ export class PrestamosService {
     return this.findOne(id);
   }
 
-  async cancelar(id: number, dto: CancelarPrestamoDto) {
-    const prestamo = await this.findOne(id);
+  async cancelar(id: number, dto: CancelarPrestamoDto, alcance: Alcance) {
+    const prestamo = await this.findOne(id, alcance);
     if (prestamo.estado !== EstadoPrestamo.ACTIVO) {
       throw new ConflictException('Solo se pueden cancelar préstamos activos');
     }
@@ -104,8 +107,8 @@ export class PrestamosService {
     return this.findOne(id);
   }
 
-  async remove(id: number) {
-    const prestamo = await this.findOne(id);
+  async remove(id: number, alcance: Alcance) {
+    const prestamo = await this.findOne(id, alcance);
     if (await this.detalles.existsBy({ prestamoId: id })) {
       throw new ConflictException('El préstamo ya tiene cuotas en nóminas. Cancélelo en lugar de eliminarlo.');
     }

@@ -1,8 +1,10 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
-import { Between, DataSource, FindOptionsWhere } from 'typeorm';
+import { Between, DataSource, FindOptionsWhere, In } from 'typeorm';
 import { Adelanto } from '../adelantos/entities/adelanto.entity.js';
+import { type Alcance, assertAccesoEmpresa } from '../common/decorators/alcance.decorator.js';
 import { ConceptoSistema, EstadoNomina, EstadoPrestamo, MetodoPago, TipoConcepto } from '../common/enums.js';
+import { Empresa } from '../empresas/entities/empresa.entity.js';
 import { today } from '../common/utils/dates.js';
 import { round2 } from '../common/utils/money.js';
 import { salarioPorPago } from '../nominas/salario.js';
@@ -26,16 +28,33 @@ function nombre(e: Pick<Empleado, 'nombres' | 'apellidos'>) {
   return `${e.apellidos}, ${e.nombres}`;
 }
 
+const COLUMNA_EMPRESA: Columna = { clave: 'empresa', titulo: 'Empresa', ancho: 1.6 };
+
+/** Con varias empresas, agrega la columna "Empresa" después de la primera columna. */
+function conEmpresa(columnas: Columna[], varias: boolean): Columna[] {
+  return varias ? [columnas[0], COLUMNA_EMPRESA, ...columnas.slice(1)] : columnas;
+}
+
 @Injectable()
 export class ReportesService {
   constructor(@InjectDataSource() private readonly db: DataSource) {}
 
+  /** "Surtimateriales el Marfil", o "Todas las empresas (3)" cuando el reporte abarca varias. */
+  private async empresas(alcance: Alcance) {
+    const lista = await this.db
+      .getRepository(Empresa)
+      .find({ where: { id: In(alcance.ids) }, order: { nombre: 'ASC' } });
+    const varias = lista.length > 1;
+    return { varias, texto: varias ? `Todas las empresas (${lista.length})` : (lista[0]?.nombre ?? 'Sin empresa') };
+  }
+
   // ───────────────────────── 1. Planilla del período ─────────────────────────
 
   /** Lo que se paga a cada empleado en un período, desglosado, más totales por banco. */
-  async planilla(periodoId: number): Promise<Reporte> {
+  async planilla(periodoId: number, alcance: Alcance): Promise<Reporte> {
     const periodo = await this.db.getRepository(PeriodoNomina).findOne({ where: { id: periodoId } });
     if (!periodo) throw new NotFoundException(`Período ${periodoId} no encontrado`);
+    assertAccesoEmpresa(alcance, periodo.empresaId, `Período ${periodoId} no encontrado`);
 
     const todas = await this.db.getRepository(NominaEncabezado).find({
       where: { periodoId },
@@ -102,7 +121,7 @@ export class ReportesService {
     const tipo = periodo.frecuenciaPago.nombre === 'Quincenal' ? 'Quincena' : 'Semana';
     return {
       titulo: `Planilla · ${tipo} ${periodo.numeroPeriodo} de ${periodo.anio}`,
-      subtitulo: `Del ${fechaCorta(periodo.fechaInicio)} al ${fechaCorta(periodo.fechaFin)} · Fecha de pago: ${fechaCorta(periodo.fechaPago)} · Estado: ${periodo.estado}`,
+      subtitulo: `${periodo.empresa.nombre} · Del ${fechaCorta(periodo.fechaInicio)} al ${fechaCorta(periodo.fechaFin)} · Fecha de pago: ${fechaCorta(periodo.fechaPago)} · Estado: ${periodo.estado}`,
       resumen: [
         { etiqueta: 'Empleados', valor: String(filas.length) },
         { etiqueta: 'Total percepciones', valor: dinero(totales.sueldo + totales.bonos) },
@@ -156,8 +175,9 @@ export class ReportesService {
   // ───────────────────────── 2. Pagos por rango de fechas ─────────────────────────
 
   /** Total pagado a cada empleado en los períodos cerrados con fecha de pago dentro del rango. */
-  async pagos(dto: RangoFechasDto): Promise<Reporte> {
+  async pagos(dto: RangoFechasDto, alcance: Alcance): Promise<Reporte> {
     const { desde, hasta } = this.rango(dto);
+    const empresas = await this.empresas(alcance);
     const tipo = (codigo: string) => `SUM(CASE WHEN c.codigo = '${codigo}' THEN d.monto ELSE 0 END)`;
 
     const filasRaw = await this.db
@@ -165,6 +185,7 @@ export class ReportesService {
       .createQueryBuilder('d')
       .innerJoin('d.nomina', 'n')
       .innerJoin('n.periodo', 'p')
+      .innerJoin('p.empresa', 'em')
       .innerJoin('n.empleado', 'e')
       .innerJoin('e.puesto', 'pu')
       .innerJoin('d.concepto', 'c')
@@ -172,6 +193,7 @@ export class ReportesService {
       .addSelect("e.apellidos || ', ' || e.nombres", 'empleado')
       .addSelect('e.dpi', 'dpi')
       .addSelect('pu.nombre', 'puesto')
+      .addSelect('em.nombre', 'empresa')
       .addSelect('COUNT(DISTINCT n.id)::int', 'pagos')
       .addSelect(`SUM(CASE WHEN c.tipo = '${TipoConcepto.PERCEPCION}' THEN d.monto ELSE 0 END)`, 'percepciones')
       .addSelect(tipo(ConceptoSistema.ADELANTO), 'adelantos')
@@ -182,8 +204,11 @@ export class ReportesService {
       )
       .where('n.estado = :pagada', { pagada: EstadoNomina.PAGADA })
       .andWhere('p.fechaPago BETWEEN :desde AND :hasta', { desde, hasta })
+      // Los pagos son de la empresa del período (un empleado trasladado aparece en cada empresa que le pagó).
+      .andWhere('p.empresaId IN (:...empresas)', { empresas: alcance.ids })
       .groupBy('e.id')
       .addGroupBy('pu.nombre')
+      .addGroupBy('em.nombre')
       .orderBy('e.apellidos')
       .addOrderBy('e.nombres')
       .getRawMany<Record<string, string | number>>();
@@ -195,6 +220,7 @@ export class ReportesService {
       const otros = round2(Number(r.otros));
       return {
         empleado: String(r.empleado),
+        empresa: String(r.empresa),
         dpi: String(r.dpi),
         puesto: String(r.puesto),
         pagos: Number(r.pagos),
@@ -209,24 +235,27 @@ export class ReportesService {
 
     return {
       titulo: 'Pagos por empleado',
-      subtitulo: `Pagos confirmados con fecha de pago del ${fechaCorta(desde)} al ${fechaCorta(hasta)}`,
+      subtitulo: `${empresas.texto} · Pagos confirmados con fecha de pago del ${fechaCorta(desde)} al ${fechaCorta(hasta)}`,
       resumen: [
         { etiqueta: 'Empleados pagados', valor: String(filas.length) },
         { etiqueta: 'Total percepciones', valor: dinero(totales.percepciones) },
         { etiqueta: 'Total descontado', valor: dinero(totales.adelantos + totales.prestamos + totales.otros) },
         { etiqueta: 'Total pagado', valor: dinero(totales.recibido) },
       ],
-      columnas: [
-        { clave: 'empleado', titulo: 'Empleado', ancho: 2.4 },
-        { clave: 'dpi', titulo: 'DPI', ancho: 1.3 },
-        { clave: 'puesto', titulo: 'Puesto', ancho: 1.2 },
-        { clave: 'pagos', titulo: 'Pagos', tipo: 'numero', ancho: 0.6 },
-        { clave: 'percepciones', titulo: 'Percepciones', tipo: 'dinero', ancho: 1.2 },
-        { clave: 'adelantos', titulo: 'Adelantos', tipo: 'dinero', ancho: 1.1 },
-        { clave: 'prestamos', titulo: 'Préstamos', tipo: 'dinero', ancho: 1.1 },
-        { clave: 'otros', titulo: 'Otros desc.', tipo: 'dinero', ancho: 1.1 },
-        { clave: 'recibido', titulo: 'Total recibido', tipo: 'dinero', ancho: 1.2 },
-      ],
+      columnas: conEmpresa(
+        [
+          { clave: 'empleado', titulo: 'Empleado', ancho: 2.4 },
+          { clave: 'dpi', titulo: 'DPI', ancho: 1.3 },
+          { clave: 'puesto', titulo: 'Puesto', ancho: 1.2 },
+          { clave: 'pagos', titulo: 'Pagos', tipo: 'numero', ancho: 0.6 },
+          { clave: 'percepciones', titulo: 'Percepciones', tipo: 'dinero', ancho: 1.2 },
+          { clave: 'adelantos', titulo: 'Adelantos', tipo: 'dinero', ancho: 1.1 },
+          { clave: 'prestamos', titulo: 'Préstamos', tipo: 'dinero', ancho: 1.1 },
+          { clave: 'otros', titulo: 'Otros desc.', tipo: 'dinero', ancho: 1.1 },
+          { clave: 'recibido', titulo: 'Total recibido', tipo: 'dinero', ancho: 1.2 },
+        ],
+        empresas.varias,
+      ),
       filas,
       totales,
       nombreArchivo: `pagos-${desde}-a-${hasta}`,
@@ -236,9 +265,13 @@ export class ReportesService {
 
   // ───────────────────────── 3. Adelantos ─────────────────────────
 
-  async adelantos(dto: ReporteAdelantosDto): Promise<Reporte> {
+  async adelantos(dto: ReporteAdelantosDto, alcance: Alcance): Promise<Reporte> {
     const { desde, hasta } = this.rango(dto);
-    const where: FindOptionsWhere<Adelanto> = { fechaSolicitud: Between(desde, hasta) };
+    const empresas = await this.empresas(alcance);
+    const where: FindOptionsWhere<Adelanto> = {
+      fechaSolicitud: Between(desde, hasta),
+      empleado: { empresaId: In(alcance.ids) },
+    };
     if (dto.estado) where.aplicado = dto.estado === 'DESCONTADO';
 
     const lista = await this.db.getRepository(Adelanto).find({
@@ -249,6 +282,7 @@ export class ReportesService {
     const filas: Fila[] = lista.map((a) => ({
       fecha: a.fechaSolicitud,
       empleado: nombre(a.empleado),
+      empresa: a.empleado.empresa.nombre,
       dpi: a.empleado.dpi,
       monto: a.monto,
       estado: a.aplicado ? 'Descontado' : 'Pendiente',
@@ -260,21 +294,24 @@ export class ReportesService {
     return {
       titulo: 'Adelantos',
       subtitulo:
-        `Solicitados del ${fechaCorta(desde)} al ${fechaCorta(hasta)}` +
+        `${empresas.texto} · Solicitados del ${fechaCorta(desde)} al ${fechaCorta(hasta)}` +
         (dto.estado ? ` · Solo ${dto.estado === 'PENDIENTE' ? 'pendientes' : 'descontados'}` : ''),
       resumen: [
         { etiqueta: 'Cantidad', valor: String(lista.length) },
         { etiqueta: 'Pendiente de descontar', valor: dinero(pendiente) },
         { etiqueta: 'Ya descontado', valor: dinero(descontado) },
       ],
-      columnas: [
-        { clave: 'fecha', titulo: 'Fecha', tipo: 'fecha', ancho: 0.9 },
-        { clave: 'empleado', titulo: 'Empleado', ancho: 2.2 },
-        { clave: 'dpi', titulo: 'DPI', ancho: 1.2 },
-        { clave: 'monto', titulo: 'Monto', tipo: 'dinero', ancho: 1 },
-        { clave: 'estado', titulo: 'Estado', ancho: 0.9 },
-        { clave: 'observacion', titulo: 'Observación', ancho: 2 },
-      ],
+      columnas: conEmpresa(
+        [
+          { clave: 'empleado', titulo: 'Empleado', ancho: 2.2 },
+          { clave: 'fecha', titulo: 'Fecha', tipo: 'fecha', ancho: 0.9 },
+          { clave: 'dpi', titulo: 'DPI', ancho: 1.2 },
+          { clave: 'monto', titulo: 'Monto', tipo: 'dinero', ancho: 1 },
+          { clave: 'estado', titulo: 'Estado', ancho: 0.9 },
+          { clave: 'observacion', titulo: 'Observación', ancho: 2 },
+        ],
+        empresas.varias,
+      ),
       filas,
       totales: sumar(filas, 'monto'),
       nombreArchivo: `adelantos-${desde}-a-${hasta}`,
@@ -284,8 +321,9 @@ export class ReportesService {
 
   // ───────────────────────── 4. Cartera de préstamos ─────────────────────────
 
-  async prestamos(dto: ReportePrestamosDto): Promise<Reporte> {
-    const where: FindOptionsWhere<Prestamo> = {};
+  async prestamos(dto: ReportePrestamosDto, alcance: Alcance): Promise<Reporte> {
+    const empresas = await this.empresas(alcance);
+    const where: FindOptionsWhere<Prestamo> = { empleado: { empresaId: In(alcance.ids) } };
     if (dto.estado) where.estado = dto.estado;
     const lista = await this.db.getRepository(Prestamo).find({
       where,
@@ -296,6 +334,7 @@ export class ReportesService {
     const filas: Fila[] = lista.map((p) => ({
       fecha: p.fechaSolicitud,
       empleado: nombre(p.empleado),
+      empresa: p.empleado.empresa.nombre,
       monto: p.montoTotal,
       cuota: p.montoCuota,
       pagado: round2(p.montoTotal - p.saldoPendiente),
@@ -310,23 +349,26 @@ export class ReportesService {
 
     return {
       titulo: 'Cartera de préstamos',
-      subtitulo: dto.estado ? `Préstamos en estado ${dto.estado}` : 'Todos los préstamos',
+      subtitulo: `${empresas.texto} · ${dto.estado ? `Préstamos en estado ${dto.estado}` : 'Todos los préstamos'}`,
       resumen: [
         { etiqueta: 'Préstamos', valor: String(lista.length) },
         { etiqueta: 'Total prestado', valor: dinero(totales.monto) },
         { etiqueta: 'Recuperado', valor: dinero(totales.pagado) },
         { etiqueta: 'Saldo por cobrar (activos)', valor: dinero(porCobrar) },
       ],
-      columnas: [
-        { clave: 'fecha', titulo: 'Fecha', tipo: 'fecha', ancho: 0.9 },
-        { clave: 'empleado', titulo: 'Empleado', ancho: 2.2 },
-        { clave: 'monto', titulo: 'Prestado', tipo: 'dinero' },
-        { clave: 'cuota', titulo: 'Cuota', tipo: 'dinero' },
-        { clave: 'pagado', titulo: 'Pagado', tipo: 'dinero' },
-        { clave: 'saldo', titulo: 'Saldo', tipo: 'dinero' },
-        { clave: 'cuotas', titulo: 'Cuotas restantes', tipo: 'numero', ancho: 0.9 },
-        { clave: 'estado', titulo: 'Estado', ancho: 0.8 },
-      ],
+      columnas: conEmpresa(
+        [
+          { clave: 'empleado', titulo: 'Empleado', ancho: 2.2 },
+          { clave: 'fecha', titulo: 'Fecha', tipo: 'fecha', ancho: 0.9 },
+          { clave: 'monto', titulo: 'Prestado', tipo: 'dinero' },
+          { clave: 'cuota', titulo: 'Cuota', tipo: 'dinero' },
+          { clave: 'pagado', titulo: 'Pagado', tipo: 'dinero' },
+          { clave: 'saldo', titulo: 'Saldo', tipo: 'dinero' },
+          { clave: 'cuotas', titulo: 'Cuotas restantes', tipo: 'numero', ancho: 0.9 },
+          { clave: 'estado', titulo: 'Estado', ancho: 0.8 },
+        ],
+        empresas.varias,
+      ),
       filas,
       totales,
       nombreArchivo: `prestamos-${dto.estado?.toLowerCase() ?? 'todos'}-${today()}`,
@@ -336,13 +378,15 @@ export class ReportesService {
 
   // ───────────────────────── 5. Listado de empleados ─────────────────────────
 
-  async empleados(dto: ReporteEmpleadosDto): Promise<Reporte> {
-    const where: FindOptionsWhere<Empleado> = {};
+  async empleados(dto: ReporteEmpleadosDto, alcance: Alcance): Promise<Reporte> {
+    const empresas = await this.empresas(alcance);
+    const where: FindOptionsWhere<Empleado> = { empresaId: In(alcance.ids) };
     if (dto.estado) where.estado = dto.estado;
     const lista = await this.db.getRepository(Empleado).find({ where, order: { apellidos: 'ASC', nombres: 'ASC' } });
 
     const filas: Fila[] = lista.map((e) => ({
       empleado: nombre(e),
+      empresa: e.empresa.nombre,
       dpi: e.dpi,
       puesto: e.puesto.nombre,
       frecuencia: e.frecuenciaPago.nombre,
@@ -363,25 +407,28 @@ export class ReportesService {
 
     return {
       titulo: 'Listado de empleados',
-      subtitulo: dto.estado ? `Empleados ${dto.estado === 'ACTIVO' ? 'activos' : 'inactivos'}` : 'Todos los empleados',
+      subtitulo: `${empresas.texto} · ${dto.estado ? `Empleados ${dto.estado === 'ACTIVO' ? 'activos' : 'inactivos'}` : 'Todos los empleados'}`,
       resumen: [
         { etiqueta: 'Empleados', valor: String(lista.length) },
         { etiqueta: 'Planilla semanal (activos)', valor: planilla('Semanal') },
         { etiqueta: 'Planilla quincenal (activos)', valor: planilla('Quincenal') },
       ],
-      columnas: [
-        { clave: 'empleado', titulo: 'Empleado', ancho: 2.2 },
-        { clave: 'dpi', titulo: 'DPI', ancho: 1.3 },
-        { clave: 'puesto', titulo: 'Puesto', ancho: 1.2 },
-        { clave: 'frecuencia', titulo: 'Pago', ancho: 0.9 },
-        { clave: 'salario', titulo: 'Salario mensual', tipo: 'dinero', ancho: 1.1 },
-        { clave: 'porPago', titulo: 'Pago por período', tipo: 'dinero', ancho: 1.1 },
-        { clave: 'ingreso', titulo: 'Ingreso', tipo: 'fecha', ancho: 0.9 },
-        { clave: 'telefono', titulo: 'Teléfono', ancho: 1 },
-        { clave: 'banco', titulo: 'Banco', ancho: 1.2 },
-        { clave: 'cuenta', titulo: 'Cuenta', ancho: 1.1 },
-        { clave: 'estado', titulo: 'Estado', ancho: 0.8 },
-      ],
+      columnas: conEmpresa(
+        [
+          { clave: 'empleado', titulo: 'Empleado', ancho: 2.2 },
+          { clave: 'dpi', titulo: 'DPI', ancho: 1.3 },
+          { clave: 'puesto', titulo: 'Puesto', ancho: 1.2 },
+          { clave: 'frecuencia', titulo: 'Pago', ancho: 0.9 },
+          { clave: 'salario', titulo: 'Salario mensual', tipo: 'dinero', ancho: 1.1 },
+          { clave: 'porPago', titulo: 'Pago por período', tipo: 'dinero', ancho: 1.1 },
+          { clave: 'ingreso', titulo: 'Ingreso', tipo: 'fecha', ancho: 0.9 },
+          { clave: 'telefono', titulo: 'Teléfono', ancho: 1 },
+          { clave: 'banco', titulo: 'Banco', ancho: 1.2 },
+          { clave: 'cuenta', titulo: 'Cuenta', ancho: 1.1 },
+          { clave: 'estado', titulo: 'Estado', ancho: 0.8 },
+        ],
+        empresas.varias,
+      ),
       filas,
       nombreArchivo: `empleados-${dto.estado?.toLowerCase() ?? 'todos'}-${today()}`,
       generado: new Date().toISOString(),

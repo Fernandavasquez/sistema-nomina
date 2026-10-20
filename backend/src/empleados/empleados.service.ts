@@ -6,7 +6,9 @@ import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Brackets, Repository, SelectQueryBuilder } from 'typeorm';
 import { Adelanto } from '../adelantos/entities/adelanto.entity.js';
-import { EstadoPrestamo } from '../common/enums.js';
+import { type Alcance, assertAccesoEmpresa, empresaParaCrear } from '../common/decorators/alcance.decorator.js';
+import { EstadoNomina, EstadoPrestamo } from '../common/enums.js';
+import { Empresa } from '../empresas/entities/empresa.entity.js';
 import { round2 } from '../common/utils/money.js';
 import { TipoFrecuenciaPago } from '../frecuencias-pago/entities/tipo-frecuencia-pago.entity.js';
 import { NominaEncabezado } from '../nominas/entities/nomina-encabezado.entity.js';
@@ -38,18 +40,21 @@ export class EmpleadosService {
     @InjectRepository(Adelanto) private readonly adelantos: Repository<Adelanto>,
     @InjectRepository(Prestamo) private readonly prestamos: Repository<Prestamo>,
     @InjectRepository(NominaEncabezado) private readonly nominas: Repository<NominaEncabezado>,
+    @InjectRepository(Empresa) private readonly empresas: Repository<Empresa>,
     config: ConfigService,
   ) {
     this.dirUploads = resolve(config.get('UPLOAD_DIR', 'uploads'));
   }
 
-  findAll(filtro: FiltroEmpleadosDto) {
+  findAll(filtro: FiltroEmpleadosDto, alcance: Alcance) {
     const qb = this.empleados
       .createQueryBuilder('e')
+      .leftJoinAndSelect('e.empresa', 'empresa')
       .leftJoinAndSelect('e.puesto', 'puesto')
       .leftJoinAndSelect('e.frecuenciaPago', 'frecuenciaPago')
       .orderBy('e.apellidos', 'ASC')
-      .addOrderBy('e.nombres', 'ASC');
+      .addOrderBy('e.nombres', 'ASC')
+      .where('e.empresaId IN (:...empresas)', { empresas: alcance.ids });
 
     if (filtro.buscar?.trim()) this.filtrarPorTexto(qb, filtro.buscar);
     if (filtro.estado) qb.andWhere('e.estado = :estado', { estado: filtro.estado });
@@ -85,31 +90,42 @@ export class EmpleadosService {
     );
   }
 
-  async findOne(id: number) {
+  /** Con `alcance`, un empleado de una empresa a la que el usuario no tiene acceso no se encuentra. */
+  async findOne(id: number, alcance?: Alcance) {
     const empleado = await this.empleados.findOne({ where: { id } });
     if (!empleado) throw new NotFoundException(`Empleado ${id} no encontrado`);
+    if (alcance) assertAccesoEmpresa(alcance, empleado.empresaId, `Empleado ${id} no encontrado`);
     return empleado;
   }
 
-  async create(dto: CreateEmpleadoDto) {
+  async create(dto: CreateEmpleadoDto, alcance: Alcance) {
+    const empresaId = empresaParaCrear(alcance, dto.empresaId);
+    await this.assertEmpresaActiva(empresaId);
     await this.validarReferencias(dto.puestoId, dto.frecuenciaPagoId);
-    await this.assertDpiUnico(dto.dpi);
-    const { id } = await this.empleados.save(this.empleados.create(dto));
+    await this.assertDpiUnico(dto.dpi, empresaId);
+    const { id } = await this.empleados.save(this.empleados.create({ ...dto, empresaId }));
     return this.findOne(id);
   }
 
-  async update(id: number, dto: UpdateEmpleadoDto) {
-    const empleado = await this.findOne(id);
+  async update(id: number, dto: UpdateEmpleadoDto, alcance: Alcance) {
+    const empleado = await this.findOne(id, alcance);
+    if (dto.empresaId && dto.empresaId !== empleado.empresaId) {
+      await this.assertCambioEmpresa(empleado, dto.empresaId, alcance);
+    }
     await this.validarReferencias(dto.puestoId, dto.frecuenciaPagoId);
-    if (dto.dpi) await this.assertDpiUnico(dto.dpi, id);
+    // El DPI no se repite dentro de una misma empresa (una persona sí puede trabajar en dos empresas).
+    const empresaDestino = dto.empresaId ?? empleado.empresaId;
+    if (dto.dpi || empresaDestino !== empleado.empresaId) {
+      await this.assertDpiUnico(dto.dpi ?? empleado.dpi, empresaDestino, id);
+    }
 
     // Se actualiza con los ids (no con las relaciones cargadas) para que el cambio de puesto/frecuencia se guarde.
     if (Object.keys(dto).length) await this.empleados.update(id, { ...dto });
     return this.findOne(empleado.id);
   }
 
-  async remove(id: number) {
-    const empleado = await this.findOne(id);
+  async remove(id: number, alcance: Alcance) {
+    const empleado = await this.findOne(id, alcance);
     const [tieneNominas, tieneAdelantos, tienePrestamos] = await Promise.all([
       this.nominas.existsBy({ empleadoId: id }),
       this.adelantos.existsBy({ empleadoId: id }),
@@ -128,8 +144,8 @@ export class EmpleadosService {
   }
 
   /** Resumen financiero del empleado: lo que debe y lo último que se le pagó. */
-  async estadoCuenta(id: number) {
-    const empleado = await this.findOne(id);
+  async estadoCuenta(id: number, alcance: Alcance) {
+    const empleado = await this.findOne(id, alcance);
     const [adelantosPendientes, prestamosActivos, ultimasNominas] = await Promise.all([
       this.adelantos.find({ where: { empleadoId: id, aplicado: false }, order: { fechaSolicitud: 'ASC' } }),
       this.prestamos.find({
@@ -155,8 +171,8 @@ export class EmpleadosService {
   }
 
   /** Guarda (o reemplaza) un documento del empleado: foto del DPI, recibo de luz… */
-  async guardarDocumento(id: number, tipo: TipoDocumento, archivo?: Express.Multer.File) {
-    const empleado = await this.findOne(id);
+  async guardarDocumento(id: number, tipo: TipoDocumento, alcance: Alcance, archivo?: Express.Multer.File) {
+    const empleado = await this.findOne(id, alcance);
     const { columna, carpeta } = DOCUMENTOS[tipo];
     if (!archivo) throw new BadRequestException('Debe enviar un archivo en el campo "archivo"');
     const extension = FORMATOS_DOCUMENTO[archivo.mimetype];
@@ -174,8 +190,8 @@ export class EmpleadosService {
   }
 
   /** Ficha del empleado en PDF, con su estado de cuenta y sus documentos (las fotos se incluyen). */
-  async fichaPdf(id: number) {
-    const cuenta = await this.estadoCuenta(id);
+  async fichaPdf(id: number, alcance: Alcance) {
+    const cuenta = await this.estadoCuenta(id, alcance);
     const { empleado } = cuenta;
     const documentos: DocumentoFicha[] = [];
     for (const tipo of Object.keys(DOCUMENTOS) as TipoDocumento[]) {
@@ -203,8 +219,8 @@ export class EmpleadosService {
   }
 
   /** Ruta del archivo en el servidor, para enviarlo solo a quien tiene sesión. */
-  async rutaDocumento(id: number, tipo: TipoDocumento) {
-    const empleado = await this.findOne(id);
+  async rutaDocumento(id: number, tipo: TipoDocumento, alcance: Alcance) {
+    const empleado = await this.findOne(id, alcance);
     const { columna, carpeta, nombre } = DOCUMENTOS[tipo];
     const archivo = empleado[columna];
     if (!archivo) throw new NotFoundException(`El empleado no tiene ${nombre}`);
@@ -213,6 +229,26 @@ export class EmpleadosService {
 
   private async borrarArchivo(tipo: TipoDocumento, archivo: string | null) {
     if (archivo) await unlink(join(this.dirUploads, DOCUMENTOS[tipo].carpeta, archivo)).catch(() => undefined);
+  }
+
+  private async assertEmpresaActiva(empresaId: number) {
+    const empresa = await this.empresas.findOneBy({ id: empresaId });
+    if (!empresa) throw new BadRequestException(`La empresa ${empresaId} no existe`);
+    if (!empresa.activo) throw new BadRequestException(`La empresa ${empresa.nombre} está inactiva`);
+  }
+
+  /**
+   * Pasar a un empleado a otra empresa: debe ser una empresa a la que el usuario tiene acceso, y el
+   * empleado no puede tener un pago en revisión (quedaría a medias entre las dos empresas).
+   */
+  private async assertCambioEmpresa(empleado: Empleado, empresaId: number, alcance: Alcance) {
+    empresaParaCrear(alcance, empresaId);
+    await this.assertEmpresaActiva(empresaId);
+    if (await this.nominas.existsBy({ empleadoId: empleado.id, estado: EstadoNomina.GENERADA })) {
+      throw new ConflictException(
+        'El empleado tiene un pago en revisión. Ciérrelo o reviértalo antes de cambiarlo de empresa.',
+      );
+    }
   }
 
   private async validarReferencias(puestoId?: number, frecuenciaPagoId?: number) {
@@ -224,10 +260,12 @@ export class EmpleadosService {
     }
   }
 
-  private async assertDpiUnico(dpi: string, exceptoId?: number) {
-    const existente = await this.empleados.findOne({ where: { dpi } });
+  private async assertDpiUnico(dpi: string, empresaId: number, exceptoId?: number) {
+    const existente = await this.empleados.findOne({ where: { dpi, empresaId } });
     if (existente && existente.id !== exceptoId) {
-      throw new ConflictException(`Ya existe un empleado con el DPI ${dpi}`);
+      throw new ConflictException(
+        `Ya existe un empleado con el DPI ${dpi} en ${existente.empresa.nombre}: ${existente.nombres} ${existente.apellidos}`,
+      );
     }
   }
 }

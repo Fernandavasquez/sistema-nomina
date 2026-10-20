@@ -11,6 +11,7 @@ import {
   FrecuenciaCodigo,
   MetodoPago,
 } from '../common/enums.js';
+import { type Alcance, assertAccesoEmpresa, empresaParaCrear } from '../common/decorators/alcance.decorator.js';
 import { addDays, today, toDate } from '../common/utils/dates.js';
 import { round2 } from '../common/utils/money.js';
 import { ConceptoNomina } from '../conceptos-nomina/entities/concepto-nomina.entity.js';
@@ -27,6 +28,8 @@ import { PeriodoNomina } from './entities/periodo-nomina.entity.js';
 import { ajustarInicioQuincena, calcularFechaFin } from './periodo-fechas.js';
 
 type ConceptosSistema = Record<ConceptoSistema, ConceptoNomina>;
+/** Los períodos se agrupan por empresa y frecuencia: cada grupo lleva su propia secuencia y sus reglas. */
+type Grupo = Pick<PeriodoNomina, 'empresaId' | 'frecuenciaPagoId'>;
 
 @Injectable()
 export class PeriodosNominaService {
@@ -39,21 +42,23 @@ export class PeriodosNominaService {
 
   // ───────────────────────────── Consultas ─────────────────────────────
 
-  findAll(filtro: FiltroPeriodosDto) {
-    const where: FindOptionsWhere<PeriodoNomina> = {};
+  findAll(filtro: FiltroPeriodosDto, alcance: Alcance) {
+    const where: FindOptionsWhere<PeriodoNomina> = { empresaId: In(alcance.ids) };
     if (filtro.frecuenciaPagoId) where.frecuenciaPagoId = filtro.frecuenciaPagoId;
     if (filtro.anio) where.anio = filtro.anio;
     if (filtro.estado) where.estado = filtro.estado;
     return this.periodos.find({ where, order: { fechaInicio: 'DESC', frecuenciaPagoId: 'ASC' } });
   }
 
-  async findOne(id: number) {
+  /** Con `alcance`, un período de una empresa a la que el usuario no tiene acceso no se encuentra. */
+  async findOne(id: number, alcance?: Alcance) {
     const periodo = await this.periodos.findOne({
       where: { id },
       // La contraseña del usuario nunca se lee (columna con select: false).
       relations: { anuladoPor: true },
     });
     if (!periodo) throw new NotFoundException(`Período ${id} no encontrado`);
+    if (alcance) assertAccesoEmpresa(alcance, periodo.empresaId, `Período ${id} no encontrado`);
     return periodo;
   }
 
@@ -61,8 +66,8 @@ export class PeriodosNominaService {
    * Período + sus boletas + totales. Los totales solo cuentan las boletas vigentes
    * (las anuladas se muestran aparte, como historial).
    */
-  async detalle(id: number) {
-    const periodo = await this.findOne(id);
+  async detalle(id: number, alcance?: Alcance) {
+    const periodo = await this.findOne(id, alcance);
     const nominas = await this.nominas.find({
       where: { periodoId: id },
       relations: { empleado: true, anuladoPor: true },
@@ -95,32 +100,37 @@ export class PeriodosNominaService {
   }
 
   /** Propone las fechas del siguiente período (continúa después del último no anulado). */
-  async sugerencia(frecuenciaPagoId: number) {
+  async sugerencia(frecuenciaPagoId: number, alcance: Alcance, empresaId?: number) {
+    const empresa = empresaParaCrear(alcance, empresaId);
     const frecuencia = await this.getFrecuencia(frecuenciaPagoId);
     const ultimo = await this.periodos.findOne({
-      where: { frecuenciaPagoId, estado: Not(EstadoPeriodo.ANULADO) },
+      where: { empresaId: empresa, frecuenciaPagoId, estado: Not(EstadoPeriodo.ANULADO) },
       order: { fechaFin: 'DESC' },
     });
     let fechaInicio = ultimo ? addDays(ultimo.fechaFin, 1) : today();
     if (frecuencia.codigo === FrecuenciaCodigo.QUINCENAL) fechaInicio = ajustarInicioQuincena(fechaInicio);
     const fechaFin = calcularFechaFin(frecuencia.codigo, frecuencia.diasPeriodo, fechaInicio);
-    return { frecuenciaPagoId, fechaInicio, fechaFin, fechaPago: fechaFin };
+    return { empresaId: empresa, frecuenciaPagoId, fechaInicio, fechaFin, fechaPago: fechaFin };
   }
 
   // ───────────────────────────── CRUD ─────────────────────────────
 
-  async create(dto: CreatePeriodoNominaDto) {
+  async create(dto: CreatePeriodoNominaDto, alcance: Alcance) {
+    const grupo: Grupo = {
+      empresaId: empresaParaCrear(alcance, dto.empresaId),
+      frecuenciaPagoId: dto.frecuenciaPagoId,
+    };
     const frecuencia = await this.getFrecuencia(dto.frecuenciaPagoId);
     const fechaFin = dto.fechaFin ?? calcularFechaFin(frecuencia.codigo, frecuencia.diasPeriodo, dto.fechaInicio);
     const fechaPago = dto.fechaPago ?? fechaFin;
     this.validarFechas(dto.fechaInicio, fechaFin, fechaPago);
-    await this.assertSinTraslape(dto.frecuenciaPagoId, dto.fechaInicio, fechaFin);
+    await this.assertSinTraslape(grupo, dto.fechaInicio, fechaFin);
 
     const anio = toDate(dto.fechaInicio).getUTCFullYear();
     const periodo = this.periodos.create({
-      frecuenciaPagoId: dto.frecuenciaPagoId,
+      ...grupo,
       anio,
-      numeroPeriodo: await this.siguienteNumero(dto.frecuenciaPagoId, anio, dto.fechaInicio),
+      numeroPeriodo: await this.siguienteNumero(grupo, anio, dto.fechaInicio),
       fechaInicio: dto.fechaInicio,
       fechaFin,
       fechaPago,
@@ -130,8 +140,8 @@ export class PeriodosNominaService {
     return this.findOne(id);
   }
 
-  async update(id: number, dto: UpdatePeriodoNominaDto) {
-    const periodo = await this.findOne(id);
+  async update(id: number, dto: UpdatePeriodoNominaDto, alcance: Alcance) {
+    const periodo = await this.findOne(id, alcance);
     if (periodo.estado === EstadoPeriodo.CERRADO || periodo.estado === EstadoPeriodo.ANULADO) {
       throw new ConflictException('Un período cerrado o anulado no se puede modificar');
     }
@@ -142,14 +152,14 @@ export class PeriodosNominaService {
     const fechaFin = dto.fechaFin ?? periodo.fechaFin;
     const fechaPago = dto.fechaPago ?? periodo.fechaPago;
     this.validarFechas(fechaInicio, fechaFin, fechaPago);
-    await this.assertSinTraslape(periodo.frecuenciaPagoId, fechaInicio, fechaFin, id);
+    await this.assertSinTraslape(periodo, fechaInicio, fechaFin, id);
 
     await this.periodos.update(id, { fechaInicio, fechaFin, fechaPago });
     return this.findOne(id);
   }
 
-  async remove(id: number) {
-    const periodo = await this.findOne(id);
+  async remove(id: number, alcance: Alcance) {
+    const periodo = await this.findOne(id, alcance);
     if (periodo.estado !== EstadoPeriodo.ABIERTO) {
       throw new ConflictException('Solo se pueden eliminar períodos ABIERTOS (revierta el procesamiento primero)');
     }
@@ -174,19 +184,22 @@ export class PeriodosNominaService {
       if (periodo.estado === EstadoPeriodo.CERRADO || periodo.estado === EstadoPeriodo.ANULADO) {
         throw new ConflictException('El período ya está cerrado o anulado');
       }
-      await this.assertSinOtroEnProceso(manager, periodo.frecuenciaPagoId, id);
-      await this.assertSinBoletasPorConfirmar(manager, periodo.frecuenciaPagoId);
+      await this.assertSinOtroEnProceso(manager, periodo, id);
+      await this.assertSinBoletasPorConfirmar(manager, periodo);
 
       const conceptos = await this.conceptosSistema(manager);
       const empleados = await manager.find(Empleado, {
         where: {
+          empresaId: periodo.empresaId,
           frecuenciaPagoId: periodo.frecuenciaPagoId,
           estado: EstadoEmpleado.ACTIVO,
           fechaIngreso: LessThanOrEqual(periodo.fechaFin),
         },
       });
       if (!empleados.length) {
-        throw new BadRequestException('No hay empleados activos con esta frecuencia de pago para el período');
+        throw new BadRequestException(
+          'No hay empleados activos de esta empresa con esta frecuencia de pago para el período',
+        );
       }
       const empleadoIds = empleados.map((e) => e.id);
       const existentes = await manager.find(NominaEncabezado, { where: { periodoId: id } });
@@ -286,7 +299,7 @@ export class PeriodosNominaService {
           'Solo se anulan períodos CERRADOS (pagados). Un período en revisión se revierte; uno abierto se elimina.',
         );
       }
-      await this.assertSinOtroEnProceso(manager, periodo.frecuenciaPagoId);
+      await this.assertSinOtroEnProceso(manager, periodo);
 
       const nominas = await manager.find(NominaEncabezado, { where: { periodoId: id }, relations: { detalles: true } });
       // Boletas nuevas aún sin confirmar: no se llegaron a pagar, simplemente se descartan.
@@ -317,7 +330,7 @@ export class PeriodosNominaService {
       if (nomina.estado !== EstadoNomina.PAGADA || periodo.estado !== EstadoPeriodo.CERRADO) {
         throw new ConflictException('Solo se anulan boletas pagadas de un período CERRADO');
       }
-      await this.assertSinOtroEnProceso(manager, periodo.frecuenciaPagoId);
+      await this.assertSinOtroEnProceso(manager, periodo);
 
       await this.revertirPago(manager, [nomina]);
       await manager.update(NominaEncabezado, nominaId, {
@@ -342,7 +355,7 @@ export class PeriodosNominaService {
       if (periodo.estado !== EstadoPeriodo.CERRADO) {
         throw new ConflictException('Solo se emite una boleta nueva en un período CERRADO');
       }
-      await this.assertSinOtroEnProceso(manager, periodo.frecuenciaPagoId);
+      await this.assertSinOtroEnProceso(manager, periodo);
 
       const boletas = await manager.find(NominaEncabezado, { where: { periodoId, empleadoId } });
       if (!boletas.some((n) => n.estado === EstadoNomina.ANULADA)) {
@@ -590,13 +603,18 @@ export class PeriodosNominaService {
   }
 
   /**
-   * Solo puede haber un período PROCESADO por frecuencia: así un adelanto o una cuota
+   * Solo puede haber un período PROCESADO por empresa y frecuencia: así un adelanto o una cuota
    * nunca se incluye en dos pagos a la vez. Las anulaciones también lo exigen, porque
    * devuelven adelantos y saldos que un período en revisión no tendría en cuenta.
    */
-  private async assertSinOtroEnProceso(manager: EntityManager, frecuenciaPagoId: number, exceptoId?: number) {
+  private async assertSinOtroEnProceso(
+    manager: EntityManager,
+    { empresaId, frecuenciaPagoId }: Grupo,
+    exceptoId?: number,
+  ) {
     const otroEnProceso = await manager.exists(PeriodoNomina, {
       where: {
+        empresaId,
         frecuenciaPagoId,
         estado: EstadoPeriodo.PROCESADO,
         ...(exceptoId ? { id: Not(exceptoId) } : {}),
@@ -604,17 +622,17 @@ export class PeriodosNominaService {
     });
     if (otroEnProceso) {
       throw new ConflictException(
-        'Hay un período de esta frecuencia en estado PROCESADO. Ciérrelo o reviértalo antes de continuar.',
+        'Hay un período de esta empresa y frecuencia en estado PROCESADO. Ciérrelo o reviértalo antes de continuar.',
       );
     }
   }
 
   /** Una boleta nueva sin confirmar ya "reservó" adelantos y cuotas: hay que confirmarla o descartarla antes. */
-  private async assertSinBoletasPorConfirmar(manager: EntityManager, frecuenciaPagoId: number) {
+  private async assertSinBoletasPorConfirmar(manager: EntityManager, { empresaId, frecuenciaPagoId }: Grupo) {
     const pendiente = await manager.exists(NominaEncabezado, {
       where: {
         estado: EstadoNomina.GENERADA,
-        periodo: { frecuenciaPagoId, estado: EstadoPeriodo.CERRADO },
+        periodo: { empresaId, frecuenciaPagoId, estado: EstadoPeriodo.CERRADO },
       },
     });
     if (pendiente) {
@@ -625,21 +643,28 @@ export class PeriodosNominaService {
   }
 
   /** Número del período: reutiliza el de un período anulado con la misma fecha; si no, el siguiente. */
-  private async siguienteNumero(frecuenciaPagoId: number, anio: number, fechaInicio: string) {
+  private async siguienteNumero({ empresaId, frecuenciaPagoId }: Grupo, anio: number, fechaInicio: string) {
     const anulado = await this.periodos.findOne({
-      where: { frecuenciaPagoId, anio, fechaInicio, estado: EstadoPeriodo.ANULADO },
+      where: { empresaId, frecuenciaPagoId, anio, fechaInicio, estado: EstadoPeriodo.ANULADO },
       order: { id: 'DESC' },
     });
     if (anulado) {
       const ocupado = await this.periodos.exists({
-        where: { frecuenciaPagoId, anio, numeroPeriodo: anulado.numeroPeriodo, estado: Not(EstadoPeriodo.ANULADO) },
+        where: {
+          empresaId,
+          frecuenciaPagoId,
+          anio,
+          numeroPeriodo: anulado.numeroPeriodo,
+          estado: Not(EstadoPeriodo.ANULADO),
+        },
       });
       if (!ocupado) return anulado.numeroPeriodo;
     }
     const { max } = (await this.periodos
       .createQueryBuilder('p')
       .select('COALESCE(MAX(p.numeroPeriodo), 0)', 'max')
-      .where('p.frecuenciaPagoId = :f AND p.anio = :anio AND p.estado <> :anulado', {
+      .where('p.empresaId = :e AND p.frecuenciaPagoId = :f AND p.anio = :anio AND p.estado <> :anulado', {
+        e: empresaId,
         f: frecuenciaPagoId,
         anio,
         anulado: EstadoPeriodo.ANULADO,
@@ -668,11 +693,16 @@ export class PeriodosNominaService {
     if (pago < inicio) throw new BadRequestException('La fecha de pago no puede ser anterior al inicio del período');
   }
 
-  /** Dos períodos de la misma frecuencia no pueden cruzarse en fechas (los anulados no cuentan). */
-  private async assertSinTraslape(frecuenciaPagoId: number, inicio: string, fin: string, exceptoId?: number) {
+  /** Dos períodos de la misma empresa y frecuencia no pueden cruzarse en fechas (los anulados no cuentan). */
+  private async assertSinTraslape(
+    { empresaId, frecuenciaPagoId }: Grupo,
+    inicio: string,
+    fin: string,
+    exceptoId?: number,
+  ) {
     const qb = this.periodos
       .createQueryBuilder('p')
-      .where('p.frecuenciaPagoId = :frecuenciaPagoId', { frecuenciaPagoId })
+      .where('p.empresaId = :empresaId AND p.frecuenciaPagoId = :frecuenciaPagoId', { empresaId, frecuenciaPagoId })
       .andWhere('p.estado <> :anulado', { anulado: EstadoPeriodo.ANULADO })
       .andWhere('p.fechaInicio <= :fin AND p.fechaFin >= :inicio', { inicio, fin });
     if (exceptoId) qb.andWhere('p.id <> :exceptoId', { exceptoId });

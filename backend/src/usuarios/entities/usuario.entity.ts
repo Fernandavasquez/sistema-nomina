@@ -1,5 +1,6 @@
-import { Column, Entity, JoinColumn, ManyToOne, type Relation } from 'typeorm';
+import { Column, Entity, JoinColumn, JoinTable, ManyToMany, ManyToOne, type Relation } from 'typeorm';
 import { BaseEntity } from '../../common/entities/base.entity.js';
+import { Empresa } from '../../empresas/entities/empresa.entity.js';
 import { Rol } from '../../roles/entities/rol.entity.js';
 
 @Entity('usuarios')
@@ -32,4 +33,13 @@ export class Usuario extends BaseEntity {
   @ManyToOne(() => Rol, { eager: true, onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'rol_id' })
   rol: Relation<Rol>;
+
+  /** Empresas que puede ver y trabajar. El administrador ve todas, sin importar esta lista. */
+  @ManyToMany(() => Empresa)
+  @JoinTable({
+    name: 'usuarios_empresas',
+    joinColumn: { name: 'usuario_id' },
+    inverseJoinColumn: { name: 'empresa_id' },
+  })
+  empresas: Relation<Empresa[]>;
 }

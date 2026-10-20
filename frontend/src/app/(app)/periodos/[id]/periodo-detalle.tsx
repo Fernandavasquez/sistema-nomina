@@ -98,7 +98,8 @@ export function PeriodoDetalle() {
         title={nombrePeriodo(p)}
         description={
           <span className="flex flex-wrap items-center gap-2">
-            Del {date(p.fechaInicio)} al {date(p.fechaFin)} · Pago: {date(p.fechaPago)} <EstadoBadge estado={p.estado} />
+            {p.empresa.nombre} · Del {date(p.fechaInicio)} al {date(p.fechaFin)} · Pago: {date(p.fechaPago)}{' '}
+            <EstadoBadge estado={p.estado} />
           </span>
         }
         actions={

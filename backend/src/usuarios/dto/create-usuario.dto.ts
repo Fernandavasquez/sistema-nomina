@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsBoolean, IsEmail, IsInt, IsOptional, IsString, Length, Matches, MinLength } from 'class-validator';
+import { IsArray, IsBoolean, IsEmail, IsInt, IsOptional, IsString, Length, Matches, MinLength } from 'class-validator';
 
 export class CreateUsuarioDto {
   @ApiProperty({ example: 'María' })
@@ -38,4 +38,13 @@ export class CreateUsuarioDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  @ApiPropertyOptional({
+    example: [1, 2],
+    description: 'Empresas que puede ver. El administrador ve todas sin importar esta lista.',
+  })
+  @IsOptional()
+  @IsArray()
+  @IsInt({ each: true })
+  empresaIds?: number[];
 }

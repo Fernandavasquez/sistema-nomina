@@ -6,6 +6,7 @@ import { useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import { Button, Card, CardHeader, Spinner } from '@/components/ui';
 import { api } from '@/lib/api';
+import { encabezadoEmpresa } from '@/lib/empresa-actual';
 import type { Empleado } from '@/lib/types';
 
 /** Documentos que se pueden adjuntar al empleado (ruta en el API → columna y textos). */
@@ -30,7 +31,7 @@ export function DocumentoEmpleado({ empleado, tipo }: { empleado: Empleado; tipo
     queryKey: ['empleado', empleado.id, tipo, archivoGuardado],
     enabled: !!archivoGuardado,
     queryFn: async () => {
-      const res = await fetch(`/api/backend/empleados/${empleado.id}/${tipo}`);
+      const res = await fetch(`/api/backend/empleados/${empleado.id}/${tipo}`, { headers: encabezadoEmpresa() });
       if (!res.ok) throw new Error('No se pudo cargar el archivo');
       const blob = await res.blob();
       return { url: URL.createObjectURL(blob), esPdf: blob.type === 'application/pdf' };

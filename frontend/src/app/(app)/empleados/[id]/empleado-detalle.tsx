@@ -92,7 +92,8 @@ export function EmpleadoDetalle() {
         title={nombreCompleto(e)}
         description={
           <span className="flex flex-wrap items-center gap-2">
-            {e.puesto.nombre} · Pago {e.frecuenciaPago.nombre.toLowerCase()} <EstadoBadge estado={e.estado} />
+            {e.empresa.nombre} · {e.puesto.nombre} · Pago {e.frecuenciaPago.nombre.toLowerCase()}{' '}
+            <EstadoBadge estado={e.estado} />
           </span>
         }
         actions={

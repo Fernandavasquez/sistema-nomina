@@ -2,12 +2,15 @@ import { Check, Column, Entity, Index, JoinColumn, ManyToOne, type Relation } fr
 import { BaseEntity } from '../../common/entities/base.entity.js';
 import { EstadoEmpleado } from '../../common/enums.js';
 import { moneyColumn } from '../../common/utils/money.js';
+import { Empresa } from '../../empresas/entities/empresa.entity.js';
 import { TipoFrecuenciaPago } from '../../frecuencias-pago/entities/tipo-frecuencia-pago.entity.js';
 import { Puesto } from '../../puestos/entities/puesto.entity.js';
 
 @Entity('empleados')
 // Reglas CHECK de la base de datos (creadas en la migración inicial).
 @Check('chk_empleados_salario', '"salario_mensual" > 0')
+// El DPI no se repite dentro de una empresa; la misma persona sí puede estar en dos empresas.
+@Index('uq_empleado_empresa_dpi', ['empresaId', 'dpi'], { unique: true })
 @Check('chk_empleados_dpi', `"dpi" ~ '^[0-9]{13}$'`)
 export class Empleado extends BaseEntity {
   @Column({ type: 'varchar', length: 100 })
@@ -17,7 +20,8 @@ export class Empleado extends BaseEntity {
   apellidos: string;
 
   /** Documento Personal de Identificación (13 dígitos). */
-  @Column({ type: 'varchar', length: 13, unique: true })
+  @Index()
+  @Column({ type: 'varchar', length: 13 })
   dpi: string;
 
   @Column({ type: 'varchar', length: 20, nullable: true })
@@ -54,6 +58,15 @@ export class Empleado extends BaseEntity {
   /** Recibo de luz (comprobante de domicilio), foto o PDF. */
   @Column({ type: 'varchar', length: 255, nullable: true })
   reciboLuz: string | null;
+
+  /** Empresa que lo contrató. Sus pagos anteriores quedan en la empresa donde se hicieron. */
+  @Index()
+  @Column()
+  empresaId: number;
+
+  @ManyToOne(() => Empresa, { eager: true, onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'empresa_id' })
+  empresa: Relation<Empresa>;
 
   @Column()
   puestoId: number;

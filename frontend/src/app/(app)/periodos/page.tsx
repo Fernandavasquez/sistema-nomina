@@ -23,12 +23,15 @@ import {
   Td,
   Th,
 } from '@/components/ui';
-import { useFrecuencias } from '@/hooks/queries';
+import { useEmpresaActual, useFrecuencias } from '@/hooks/queries';
 import { api, qs } from '@/lib/api';
 import { date, nombrePeriodo } from '@/lib/format';
 import type { PeriodoNomina } from '@/lib/types';
 
 export default function PeriodosPage() {
+  // Con "Todas las empresas" se muestra de qué empresa es cada período.
+  const { seleccion: empresaMenu, varias } = useEmpresaActual();
+  const verEmpresa = varias && empresaMenu === 'todas';
   const router = useRouter();
   const frecuencias = useFrecuencias();
   const [frecuenciaPagoId, setFrecuenciaPagoId] = useState('');
@@ -97,6 +100,7 @@ export default function PeriodosPage() {
             <thead>
               <tr>
                 <Th>Período</Th>
+                {verEmpresa && <Th>Empresa</Th>}
                 <Th>Del</Th>
                 <Th>Al</Th>
                 <Th>Fecha de pago</Th>
@@ -107,6 +111,7 @@ export default function PeriodosPage() {
               {data.map((p) => (
                 <tr key={p.id} onClick={() => router.push(`/periodos/${p.id}`)} className="cursor-pointer hover:bg-slate-50">
                   <Td className="font-medium text-slate-900">{nombrePeriodo(p)}</Td>
+                  {verEmpresa && <Td className="text-slate-600">{p.empresa.nombre}</Td>}
                   <Td>{date(p.fechaInicio)}</Td>
                   <Td>{date(p.fechaFin)}</Td>
                   <Td>{date(p.fechaPago)}</Td>
@@ -128,18 +133,22 @@ function NuevoPeriodoModal({ open, onClose }: { open: boolean; onClose: () => vo
   const router = useRouter();
   const queryClient = useQueryClient();
   const frecuencias = useFrecuencias();
+  const { seleccion, empresas, varias } = useEmpresaActual();
+  // Cada empresa lleva sus propios períodos: por defecto, la elegida en el menú.
+  const [empresaElegida, setEmpresaElegida] = useState(0);
+  const empresaId = empresaElegida || (seleccion === 'todas' ? 0 : seleccion);
   const [frecuenciaPagoId, setFrecuenciaPagoId] = useState(0);
   // Fechas que el usuario modificó a mano; las demás se toman de la sugerencia.
   const [cambios, setCambios] = useState<Partial<Record<'fechaInicio' | 'fechaFin' | 'fechaPago', string>>>({});
 
   // Al elegir la frecuencia, el backend sugiere las fechas que siguen al último período.
   const sugerencia = useQuery({
-    queryKey: ['periodos', 'sugerencia', frecuenciaPagoId],
+    queryKey: ['periodos', 'sugerencia', empresaId, frecuenciaPagoId],
     queryFn: () =>
       api.get<{ fechaInicio: string; fechaFin: string; fechaPago: string }>(
-        `/periodos-nomina/sugerencia${qs({ frecuenciaPagoId })}`,
+        `/periodos-nomina/sugerencia${qs({ frecuenciaPagoId, empresaId })}`,
       ),
-    enabled: open && frecuenciaPagoId > 0,
+    enabled: open && frecuenciaPagoId > 0 && empresaId > 0,
     staleTime: 0,
   });
   const fechas = { fechaInicio: '', fechaFin: '', fechaPago: '', ...sugerencia.data, ...cambios };
@@ -148,6 +157,7 @@ function NuevoPeriodoModal({ open, onClose }: { open: boolean; onClose: () => vo
   const crear = useMutation({
     mutationFn: () =>
       api.post<PeriodoNomina>('/periodos-nomina', {
+        empresaId,
         frecuenciaPagoId,
         fechaInicio: fechas.fechaInicio,
         fechaFin: fechas.fechaFin,
@@ -164,6 +174,27 @@ function NuevoPeriodoModal({ open, onClose }: { open: boolean; onClose: () => vo
   return (
     <Modal open={open} onClose={onClose} title="Nuevo período de pago">
       <div className="space-y-4">
+        {varias && (
+          <Field label="Empresa">
+            {(id) => (
+              <Select
+                id={id}
+                value={empresaId}
+                onChange={(e) => {
+                  setEmpresaElegida(Number(e.target.value));
+                  setCambios({});
+                }}
+              >
+                <option value={0}>Seleccione…</option>
+                {empresas.map((e) => (
+                  <option key={e.id} value={e.id}>
+                    {e.nombre}
+                  </option>
+                ))}
+              </Select>
+            )}
+          </Field>
+        )}
         <Field label="Forma de pago">
           {(id) => (
             <Select
@@ -183,7 +214,7 @@ function NuevoPeriodoModal({ open, onClose }: { open: boolean; onClose: () => vo
             </Select>
           )}
         </Field>
-        {frecuenciaPagoId > 0 && (
+        {frecuenciaPagoId > 0 && empresaId > 0 && (
           <>
             <Alert color="blue">Fechas sugeridas a continuación del último período. Puede ajustarlas si lo necesita.</Alert>
             <div className="grid gap-4 sm:grid-cols-3">
@@ -227,7 +258,7 @@ function NuevoPeriodoModal({ open, onClose }: { open: boolean; onClose: () => vo
           <Button
             onClick={() => crear.mutate()}
             loading={crear.isPending}
-            disabled={!frecuenciaPagoId || !fechas.fechaInicio || !fechas.fechaFin || sugerencia.isFetching}
+            disabled={!empresaId || !frecuenciaPagoId || !fechas.fechaInicio || !fechas.fechaFin || sugerencia.isFetching}
           >
             Crear período
           </Button>

@@ -1,6 +1,7 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import type { Alcance } from '../common/decorators/alcance.decorator.js';
 import { EstadoEmpleado } from '../common/enums.js';
 import { Empleado } from '../empleados/entities/empleado.entity.js';
 import { CreatePuestoDto, UpdatePuestoDto } from './dto/puesto.dto.js';
@@ -13,8 +14,8 @@ export class PuestosService {
     @InjectRepository(Empleado) private readonly empleados: Repository<Empleado>,
   ) {}
 
-  /** Lista de puestos con cuántos empleados activos y en total tiene cada uno. */
-  async findAll() {
+  /** Lista de puestos (compartidos entre empresas) con cuántos empleados tiene cada uno en las empresas visibles. */
+  async findAll(alcance: Alcance) {
     const [puestos, conteos] = await Promise.all([
       this.puestos.find({ order: { nombre: 'ASC' } }),
       this.empleados
@@ -22,6 +23,7 @@ export class PuestosService {
         .select('e.puestoId', 'puestoId')
         .addSelect('COUNT(*)::int', 'total')
         .addSelect(`COUNT(*) FILTER (WHERE e.estado = '${EstadoEmpleado.ACTIVO}')::int`, 'activos')
+        .where('e.empresaId IN (:...empresas)', { empresas: alcance.ids })
         .groupBy('e.puestoId')
         .getRawMany<{ puestoId: number; total: number; activos: number }>(),
     ]);

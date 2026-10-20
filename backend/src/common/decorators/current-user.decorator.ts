@@ -6,6 +6,8 @@ export interface AuthUser {
   id: number;
   username: string;
   rol: string;
+  /** Empresas que puede ver (el administrador, todas). */
+  empresaIds: number[];
 }
 
 export const CurrentUser = createParamDecorator((_data: unknown, ctx: ExecutionContext): AuthUser => {

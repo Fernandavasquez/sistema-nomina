@@ -18,12 +18,15 @@ import {
   Td,
   Th,
 } from '@/components/ui';
-import { useFrecuencias, usePuestos } from '@/hooks/queries';
+import { useEmpresaActual, useFrecuencias, usePuestos } from '@/hooks/queries';
 import { api, qs } from '@/lib/api';
 import { dpi, money } from '@/lib/format';
 import type { Empleado } from '@/lib/types';
 
 export function EmpleadosView() {
+  // Con "Todas las empresas" se muestra a qué empresa pertenece cada empleado.
+  const { seleccion, varias } = useEmpresaActual();
+  const verEmpresa = varias && seleccion === 'todas';
   const router = useRouter();
   const params = useSearchParams();
   const [buscar, setBuscar] = useState('');
@@ -109,6 +112,7 @@ export function EmpleadosView() {
                 <tr>
                   <Th>Empleado</Th>
                   <Th>DPI</Th>
+                  {verEmpresa && <Th>Empresa</Th>}
                   <Th>Puesto</Th>
                   <Th>Pago</Th>
                   <Th className="text-right">Salario mensual</Th>
@@ -125,6 +129,7 @@ export function EmpleadosView() {
                       {e.telefono && <p className="text-xs text-slate-500">{e.telefono}</p>}
                     </Td>
                     <Td className="tabular whitespace-nowrap text-slate-600">{dpi(e.dpi)}</Td>
+                    {verEmpresa && <Td className="text-slate-600">{e.empresa.nombre}</Td>}
                     <Td>{e.puesto.nombre}</Td>
                     <Td>{e.frecuenciaPago.nombre}</Td>
                     <Td className="tabular text-right font-medium">{money(e.salarioMensual)}</Td>

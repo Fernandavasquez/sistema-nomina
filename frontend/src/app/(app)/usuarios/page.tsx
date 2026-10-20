@@ -24,7 +24,7 @@ import {
   Td,
   Th,
 } from '@/components/ui';
-import { useSesion } from '@/hooks/queries';
+import { useEmpresas, useSesion } from '@/hooks/queries';
 import { api } from '@/lib/api';
 import { dateTime } from '@/lib/format';
 import type { Rol, Usuario } from '@/lib/types';
@@ -66,6 +66,7 @@ export default function UsuariosPage() {
                 <Th>Nombre</Th>
                 <Th>Usuario</Th>
                 <Th>Rol</Th>
+                <Th>Empresas</Th>
                 <Th>Último acceso</Th>
                 <Th>Estado</Th>
                 <Th />
@@ -82,6 +83,15 @@ export default function UsuariosPage() {
                   </Td>
                   <Td className="font-mono text-sm">{u.username}</Td>
                   <Td>{u.rol.nombre === 'ADMIN' ? <Badge color="blue">Administrador</Badge> : <Badge>Operador</Badge>}</Td>
+                  <Td className="max-w-56 text-sm text-slate-600">
+                    {u.rol.nombre === 'ADMIN' ? (
+                      'Todas'
+                    ) : u.empresas?.length ? (
+                      u.empresas.map((e) => e.nombre).join(', ')
+                    ) : (
+                      <span className="text-amber-700">Ninguna</span>
+                    )}
+                  </Td>
                   <Td className="whitespace-nowrap text-slate-600">{dateTime(u.ultimoAcceso)}</Td>
                   <Td>{u.isActive ? <Badge color="green">Activo</Badge> : <Badge color="red">Desactivado</Badge>}</Td>
                   <Td className="text-right">
@@ -118,16 +128,20 @@ const schema = z.object({
   rolId: z.number().int().positive('Seleccione un rol'),
   isActive: z.boolean(),
   password: z.string(),
+  empresaIds: z.array(z.number()),
 });
 type FormData = z.infer<typeof schema>;
 
 function UsuarioModal({ usuario, esYo, onClose }: { usuario?: Usuario; esYo: boolean; onClose: () => void }) {
   const queryClient = useQueryClient();
   const roles = useQuery({ queryKey: ['roles'], queryFn: () => api.get<Rol[]>('/roles') });
+  const empresas = useEmpresas();
   const {
     register,
     handleSubmit,
     setError,
+    watch,
+    setValue,
     formState: { errors },
   } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -139,8 +153,11 @@ function UsuarioModal({ usuario, esYo, onClose }: { usuario?: Usuario; esYo: boo
       rolId: usuario?.rolId ?? 0,
       isActive: usuario?.isActive ?? true,
       password: '',
+      empresaIds: usuario?.empresas?.map((e) => e.id) ?? [],
     },
   });
+  const empresaIds = watch('empresaIds');
+  const esAdminElegido = roles.data?.find((r) => r.id === watch('rolId'))?.nombre === 'ADMIN';
 
   const guardar = useMutation({
     mutationFn: ({ password, ...data }: FormData) => {
@@ -158,6 +175,10 @@ function UsuarioModal({ usuario, esYo, onClose }: { usuario?: Usuario; esYo: boo
     // Al crear, la contraseña es obligatoria; al editar, solo si se quiere cambiar.
     if ((!usuario || data.password) && data.password.length < 8) {
       setError('password', { message: 'Mínimo 8 caracteres' });
+      return;
+    }
+    if (!esAdminElegido && !data.empresaIds.length) {
+      setError('empresaIds', { message: 'Elija al menos una empresa' });
       return;
     }
     guardar.mutate(data);
@@ -201,6 +222,36 @@ function UsuarioModal({ usuario, esYo, onClose }: { usuario?: Usuario; esYo: boo
             )}
           </Field>
         </div>
+        <fieldset>
+          <legend className="text-sm font-medium text-slate-700">Empresas que puede ver</legend>
+          {esAdminElegido ? (
+            <p className="mt-1 text-sm text-slate-500">El administrador ve todas las empresas.</p>
+          ) : (
+            <>
+              <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                {empresas.data?.map((e) => (
+                  <label key={e.id} className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={empresaIds.includes(e.id)}
+                      onChange={(ev) =>
+                        setValue(
+                          'empresaIds',
+                          ev.target.checked ? [...empresaIds, e.id] : empresaIds.filter((id) => id !== e.id),
+                          { shouldValidate: true },
+                        )
+                      }
+                      className="size-4 accent-emerald-600"
+                    />
+                    {e.nombre}
+                    {!e.activo && <span className="text-xs text-slate-400">(inactiva)</span>}
+                  </label>
+                ))}
+              </div>
+              {errors.empresaIds && <p className="mt-1 text-sm text-red-600">{errors.empresaIds.message}</p>}
+            </>
+          )}
+        </fieldset>
         {roles.data && (
           <p className="text-xs text-slate-500">
             {roles.data.map((r) => `${r.nombre === 'ADMIN' ? 'Administrador' : 'Operador'}: ${r.descripcion}`).join(' · ')}

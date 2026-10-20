@@ -1,18 +1,28 @@
 import { Check, Column, Entity, Index, JoinColumn, ManyToOne, type Relation } from 'typeorm';
 import { BaseEntity } from '../../common/entities/base.entity.js';
 import { EstadoPeriodo } from '../../common/enums.js';
+import { Empresa } from '../../empresas/entities/empresa.entity.js';
 import { TipoFrecuenciaPago } from '../../frecuencias-pago/entities/tipo-frecuencia-pago.entity.js';
 import { Usuario } from '../../usuarios/entities/usuario.entity.js';
 
 @Entity('periodos_nomina')
 // Reglas CHECK de la base de datos (creadas en la migración inicial).
 @Check('chk_periodos_fechas', '"fecha_fin" >= "fecha_inicio"')
-// Número único por frecuencia y año, sin contar los anulados (así se puede rehacer un período anulado).
-@Index('uq_periodo_frecuencia_anio_numero', ['frecuenciaPagoId', 'anio', 'numeroPeriodo'], {
+// Número único por empresa, frecuencia y año, sin contar los anulados (así se puede rehacer un período anulado).
+@Index('uq_periodo_empresa_frecuencia_anio_numero', ['empresaId', 'frecuenciaPagoId', 'anio', 'numeroPeriodo'], {
   unique: true,
   where: `"estado" <> 'ANULADO'`,
 })
 export class PeriodoNomina extends BaseEntity {
+  /** Cada empresa paga y cierra sus períodos por separado. */
+  @Index()
+  @Column()
+  empresaId: number;
+
+  @ManyToOne(() => Empresa, { eager: true, onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'empresa_id' })
+  empresa: Relation<Empresa>;
+
   @Column()
   frecuenciaPagoId: number;
 

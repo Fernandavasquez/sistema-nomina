@@ -9,8 +9,12 @@ import { Button, Card, EmptyState, ErrorState, EstadoBadge, PageHeader, Select, 
 import { api, qs } from '@/lib/api';
 import { date, money, nombreCompleto } from '@/lib/format';
 import type { Prestamo } from '@/lib/types';
+import { useEmpresaActual } from '@/hooks/queries';
 
 export default function PrestamosPage() {
+  // Con "Todas las empresas" se indica la empresa de cada empleado.
+  const { seleccion: empresaMenu, varias } = useEmpresaActual();
+  const verEmpresa = varias && empresaMenu === 'todas';
   const router = useRouter();
   const [estado, setEstado] = useState('ACTIVO');
   const [nuevo, setNuevo] = useState(false);
@@ -76,7 +80,10 @@ export default function PrestamosPage() {
                 return (
                   <tr key={p.id} onClick={() => router.push(`/prestamos/${p.id}`)} className="cursor-pointer hover:bg-slate-50">
                     <Td className="whitespace-nowrap">{date(p.fechaSolicitud)}</Td>
-                    <Td className="font-medium text-slate-900">{nombreCompleto(p.empleado)}</Td>
+                    <Td className="font-medium text-slate-900">
+                      {nombreCompleto(p.empleado)}
+                      {verEmpresa && <p className="text-xs font-normal text-slate-500">{p.empleado?.empresa.nombre}</p>}
+                    </Td>
                     <Td className="tabular text-right">{money(p.montoTotal)}</Td>
                     <Td className="tabular text-right">{money(p.montoCuota)}</Td>
                     <Td className="tabular text-right font-medium">{money(p.saldoPendiente)}</Td>

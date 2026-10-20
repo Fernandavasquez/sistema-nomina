@@ -4,6 +4,15 @@ import { IsDateString, IsEnum, IsInt, IsOptional } from 'class-validator';
 import { EstadoPeriodo } from '../../common/enums.js';
 
 export class CreatePeriodoNominaDto {
+  @ApiPropertyOptional({
+    example: 1,
+    description: 'Empresa. Si se omite, la seleccionada en el menú (encabezado X-Empresa-Id).',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  empresaId?: number;
+
   @ApiProperty({ example: 1, description: '1 = SEMANAL, 2 = QUINCENAL' })
   @Type(() => Number)
   @IsInt()
@@ -65,4 +74,13 @@ export class SugerenciaPeriodoDto {
   @Type(() => Number)
   @IsInt()
   frecuenciaPagoId: number;
+
+  @ApiPropertyOptional({
+    example: 1,
+    description: 'Empresa. Si se omite, la seleccionada en el menú (encabezado X-Empresa-Id).',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  empresaId?: number;
 }

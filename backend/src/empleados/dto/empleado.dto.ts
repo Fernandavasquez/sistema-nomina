@@ -70,6 +70,15 @@ export class CreateEmpleadoDto {
   @IsPositive({ message: 'El salario debe ser mayor a 0' })
   salarioMensual: number;
 
+  @ApiPropertyOptional({
+    example: 1,
+    description: 'Empresa. Si se omite, la seleccionada en el menú (encabezado X-Empresa-Id).',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  empresaId?: number;
+
   @ApiProperty({ example: 1 })
   @Type(() => Number)
   @IsInt()

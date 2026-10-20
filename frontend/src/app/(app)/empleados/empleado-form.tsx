@@ -10,7 +10,7 @@ import { PuestoFormModal } from '@/components/forms/puesto-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
 import { Button, ButtonLink, Card, CardHeader, Field, Input, Select, Textarea } from '@/components/ui';
-import { useFrecuencias, usePuestos, useSesion } from '@/hooks/queries';
+import { useEmpresaActual, useFrecuencias, usePuestos, useSesion } from '@/hooks/queries';
 import { api } from '@/lib/api';
 import { money, today } from '@/lib/format';
 import { salarioDiario, salarioPorPago } from '@/lib/salario';
@@ -31,6 +31,7 @@ const schema = z.object({
   email: z.union([z.literal(''), z.email('Correo inválido')]),
   direccion: z.string().trim().min(5, 'Ingrese la dirección (mínimo 5 caracteres)').max(255),
   fechaIngreso: z.string().min(1, 'Ingrese la fecha de ingreso'),
+  empresaId: z.number().int().positive('Seleccione la empresa'),
   puestoId: z.number().int().positive('Seleccione un puesto'),
   frecuenciaPagoId: z.number().int().positive('Seleccione la forma de pago'),
   salarioMensual: z.number({ error: 'Ingrese el salario mensual' }).positive('El salario debe ser mayor a 0'),
@@ -49,6 +50,7 @@ export function EmpleadoForm({ empleado }: { empleado?: Empleado }) {
   const puestos = usePuestos();
   const frecuencias = useFrecuencias();
   const { esAdmin } = useSesion();
+  const { seleccion, empresas } = useEmpresaActual();
   const [nuevoPuesto, setNuevoPuesto] = useState(false);
   const [puestoCreadoId, setPuestoCreadoId] = useState<number | null>(null);
 
@@ -57,6 +59,7 @@ export function EmpleadoForm({ empleado }: { empleado?: Empleado }) {
     handleSubmit,
     watch,
     setValue,
+    getValues,
     formState: { errors },
   } = useForm<FormInput, unknown, FormOutput>({
     resolver: zodResolver(schema),
@@ -68,6 +71,8 @@ export function EmpleadoForm({ empleado }: { empleado?: Empleado }) {
       email: empleado?.email ?? '',
       direccion: empleado?.direccion ?? '',
       fechaIngreso: empleado?.fechaIngreso ?? today(),
+      // Un empleado nuevo queda en la empresa elegida en el menú (si se eligió una).
+      empresaId: empleado?.empresaId ?? (seleccion === 'todas' ? 0 : seleccion),
       puestoId: empleado?.puestoId ?? 0,
       frecuenciaPagoId: empleado?.frecuenciaPagoId ?? 0,
       salarioMensual: empleado?.salarioMensual,
@@ -83,6 +88,15 @@ export function EmpleadoForm({ empleado }: { empleado?: Empleado }) {
       ? `${frecuencia ? `Pago ${frecuencia.nombre.toLowerCase()}: ${money(salarioPorPago(mensual, frecuencia))} · ` : ''}` +
         `día: ${money(salarioDiario(mensual, 31))} a ${money(salarioDiario(mensual, 28))} según el mes`
       : 'El pago semanal o quincenal se calcula solo';
+
+  // Las empresas llegan después de dibujar el formulario: al cargarse se vuelve a aplicar la elegida
+  // (la del empleado, o la del menú para uno nuevo) para que la lista la muestre seleccionada.
+  const hayEmpresas = empresas.length > 0;
+  useEffect(() => {
+    if (!hayEmpresas) return;
+    const actual = getValues('empresaId') || (seleccion === 'todas' ? 0 : seleccion);
+    setValue('empresaId', actual);
+  }, [hayEmpresas, seleccion, getValues, setValue]);
 
   // Al crear un puesto desde aquí, se selecciona en cuanto aparece en la lista.
   useEffect(() => {
@@ -135,6 +149,26 @@ export function EmpleadoForm({ empleado }: { empleado?: Empleado }) {
       <Card>
         <CardHeader title="Trabajo y pago" />
         <div className="grid gap-4 p-5 sm:grid-cols-2">
+          <Field
+            label="Empresa"
+            error={errors.empresaId?.message}
+            hint={empleado ? 'Si lo cambia de empresa, sus pagos anteriores quedan en la empresa donde se hicieron' : undefined}
+          >
+            {(id) => (
+              <Select id={id} invalid={!!errors.empresaId} {...register('empresaId', { valueAsNumber: true })}>
+                <option value={0}>Seleccione…</option>
+                {empresas.map((e) => (
+                  <option key={e.id} value={e.id}>
+                    {e.nombre}
+                  </option>
+                ))}
+                {empleado && !empresas.some((e) => e.id === empleado.empresaId) && (
+                  <option value={empleado.empresaId}>{empleado.empresa.nombre}</option>
+                )}
+              </Select>
+            )}
+          </Field>
+          <div className="hidden sm:block" />
           <Field label="Puesto" error={errors.puestoId?.message}>
             {(id) => (
               <div className="flex gap-2">

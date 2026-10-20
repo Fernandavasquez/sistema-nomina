@@ -1,6 +1,7 @@
 import { Controller, Get, Param, ParseIntPipe, Query, Res } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiProduces, ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
+import { type Alcance, AlcanceEmpresas } from '../common/decorators/alcance.decorator.js';
 import { Roles } from '../common/decorators/roles.decorator.js';
 import { RolNombre } from '../common/enums.js';
 import {
@@ -34,32 +35,37 @@ export class ReportesController {
 
   @ApiOperation({ summary: 'Planilla de un período: detalle por empleado y totales por banco' })
   @Get('planilla/:periodoId')
-  async planilla(@Param('periodoId', ParseIntPipe) periodoId: number, @Query() q: FormatoDto, @Res() res: Response) {
-    return this.responder(res, await this.service.planilla(periodoId), q.formato);
+  async planilla(
+    @Param('periodoId', ParseIntPipe) periodoId: number,
+    @Query() q: FormatoDto,
+    @AlcanceEmpresas() alcance: Alcance,
+    @Res() res: Response,
+  ) {
+    return this.responder(res, await this.service.planilla(periodoId, alcance), q.formato);
   }
 
   @ApiOperation({ summary: 'Total pagado a cada empleado en un rango de fechas (períodos cerrados)' })
   @Get('pagos')
-  async pagos(@Query() q: RangoFechasDto, @Res() res: Response) {
-    return this.responder(res, await this.service.pagos(q), q.formato);
+  async pagos(@Query() q: RangoFechasDto, @AlcanceEmpresas() alcance: Alcance, @Res() res: Response) {
+    return this.responder(res, await this.service.pagos(q, alcance), q.formato);
   }
 
   @ApiOperation({ summary: 'Adelantos entregados en un rango de fechas' })
   @Get('adelantos')
-  async adelantos(@Query() q: ReporteAdelantosDto, @Res() res: Response) {
-    return this.responder(res, await this.service.adelantos(q), q.formato);
+  async adelantos(@Query() q: ReporteAdelantosDto, @AlcanceEmpresas() alcance: Alcance, @Res() res: Response) {
+    return this.responder(res, await this.service.adelantos(q, alcance), q.formato);
   }
 
   @ApiOperation({ summary: 'Cartera de préstamos: prestado, pagado y saldo' })
   @Get('prestamos')
-  async prestamos(@Query() q: ReportePrestamosDto, @Res() res: Response) {
-    return this.responder(res, await this.service.prestamos(q), q.formato);
+  async prestamos(@Query() q: ReportePrestamosDto, @AlcanceEmpresas() alcance: Alcance, @Res() res: Response) {
+    return this.responder(res, await this.service.prestamos(q, alcance), q.formato);
   }
 
   @ApiOperation({ summary: 'Listado de empleados con salario y datos bancarios' })
   @Get('empleados')
-  async empleados(@Query() q: ReporteEmpleadosDto, @Res() res: Response) {
-    return this.responder(res, await this.service.empleados(q), q.formato);
+  async empleados(@Query() q: ReporteEmpleadosDto, @AlcanceEmpresas() alcance: Alcance, @Res() res: Response) {
+    return this.responder(res, await this.service.empleados(q, alcance), q.formato);
   }
 
   private async responder(res: Response, reporte: Reporte, formato: FormatoReporte = 'json') {

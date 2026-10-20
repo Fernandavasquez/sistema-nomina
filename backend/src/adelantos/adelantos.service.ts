@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { FindOptionsWhere, Not, Repository } from 'typeorm';
+import { FindOptionsWhere, In, Not, Repository } from 'typeorm';
+import { type Alcance, assertAccesoEmpresa } from '../common/decorators/alcance.decorator.js';
 import { EstadoEmpleado, EstadoNomina } from '../common/enums.js';
 import { today } from '../common/utils/dates.js';
 import { round2 } from '../common/utils/money.js';
@@ -18,8 +19,8 @@ export class AdelantosService {
     @InjectRepository(NominaDetalle) private readonly detalles: Repository<NominaDetalle>,
   ) {}
 
-  findAll(filtro: FiltroAdelantosDto) {
-    const where: FindOptionsWhere<Adelanto> = {};
+  findAll(filtro: FiltroAdelantosDto, alcance: Alcance) {
+    const where: FindOptionsWhere<Adelanto> = { empleado: { empresaId: In(alcance.ids) } };
     if (filtro.empleadoId) where.empleadoId = filtro.empleadoId;
     if (filtro.aplicado !== undefined) where.aplicado = filtro.aplicado;
     return this.adelantos.find({
@@ -29,15 +30,17 @@ export class AdelantosService {
     });
   }
 
-  async findOne(id: number) {
+  async findOne(id: number, alcance?: Alcance) {
     const adelanto = await this.adelantos.findOne({ where: { id }, relations: { empleado: true } });
     if (!adelanto) throw new NotFoundException(`Adelanto ${id} no encontrado`);
+    if (alcance) assertAccesoEmpresa(alcance, adelanto.empleado.empresaId, `Adelanto ${id} no encontrado`);
     return adelanto;
   }
 
-  async create(dto: CreateAdelantoDto) {
+  async create(dto: CreateAdelantoDto, alcance: Alcance) {
     const empleado = await this.empleados.findOneBy({ id: dto.empleadoId });
-    if (!empleado) throw new BadRequestException(`El empleado ${dto.empleadoId} no existe`);
+    if (!empleado || !alcance.permitidas.includes(empleado.empresaId))
+      throw new BadRequestException(`El empleado ${dto.empleadoId} no existe`);
     if (empleado.estado !== EstadoEmpleado.ACTIVO) {
       throw new BadRequestException('No se pueden dar adelantos a un empleado inactivo');
     }
@@ -49,15 +52,15 @@ export class AdelantosService {
     return this.findOne(id);
   }
 
-  async update(id: number, dto: UpdateAdelantoDto) {
-    const adelanto = await this.assertEditable(id);
+  async update(id: number, dto: UpdateAdelantoDto, alcance: Alcance) {
+    const adelanto = await this.assertEditable(id, alcance);
     if (dto.monto !== undefined) await this.validarTope(adelanto.empleado, dto.monto, id);
     if (Object.keys(dto).length) await this.adelantos.update(id, dto);
     return this.findOne(id);
   }
 
-  async remove(id: number) {
-    const adelanto = await this.assertEditable(id);
+  async remove(id: number, alcance: Alcance) {
+    const adelanto = await this.assertEditable(id, alcance);
     if (await this.detalles.existsBy({ adelantoId: id })) {
       throw new ConflictException(
         'El adelanto aparece en una boleta anulada (historial) y no se puede eliminar; puede editarlo.',
@@ -84,8 +87,8 @@ export class AdelantosService {
     }
   }
 
-  private async assertEditable(id: number) {
-    const adelanto = await this.findOne(id);
+  private async assertEditable(id: number, alcance: Alcance) {
+    const adelanto = await this.findOne(id, alcance);
     if (adelanto.aplicado) {
       throw new ConflictException('El adelanto ya fue descontado en una nómina cerrada y no se puede modificar');
     }

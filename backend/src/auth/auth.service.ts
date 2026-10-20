@@ -37,7 +37,7 @@ export class AuthService {
   }
 
   async perfil(id: number) {
-    return this.usuarios.findOneOrFail({ where: { id } });
+    return this.usuarios.findOneOrFail({ where: { id }, relations: { empresas: true } });
   }
 
   async cambiarPassword(id: number, dto: CambiarPasswordDto) {
