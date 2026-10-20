@@ -102,14 +102,16 @@ export class SeedService implements OnApplicationBootstrap {
 
   private async demo(m: EntityManager) {
     if (await m.count(Empleado)) return;
-    const puestos = await m.save(
-      [
-        { nombre: 'Piloto', descripcion: 'Conduce el vehículo de reparto' },
-        { nombre: 'Ayudante', descripcion: 'Apoya al piloto en carga y descarga' },
-        { nombre: 'Bodeguero', descripcion: 'Inventario y despacho de mercadería' },
-        { nombre: 'Administrativo', descripcion: 'Oficina y contabilidad' },
-      ].map((p) => m.create(Puesto, p)),
-    );
+    // Reutiliza los puestos que ya existan (por ejemplo, si se vació la base pero se dejaron los catálogos).
+    const puestos: Puesto[] = [];
+    for (const p of [
+      { nombre: 'Piloto', descripcion: 'Conduce el vehículo de reparto' },
+      { nombre: 'Ayudante', descripcion: 'Apoya al piloto en carga y descarga' },
+      { nombre: 'Bodeguero', descripcion: 'Inventario y despacho de mercadería' },
+      { nombre: 'Administrativo', descripcion: 'Oficina y contabilidad' },
+    ]) {
+      puestos.push((await m.findOneBy(Puesto, { nombre: p.nombre })) ?? (await m.save(m.create(Puesto, p))));
+    }
     const semanal = await m.findOneByOrFail(TipoFrecuenciaPago, { codigo: FrecuenciaCodigo.SEMANAL });
     const quincenal = await m.findOneByOrFail(TipoFrecuenciaPago, { codigo: FrecuenciaCodigo.QUINCENAL });
     // Las empresas las crea la migración; los empleados de ejemplo se reparten entre ellas.

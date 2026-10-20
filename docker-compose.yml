@@ -41,7 +41,7 @@ services:
       ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
       ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@empresa.com}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-Admin123!}
-      SEED_DEMO: ${SEED_DEMO:-true}
+      SEED_DEMO: ${SEED_DEMO:-false}
       UPLOAD_DIR: /app/uploads
       TZ: America/Guatemala
     ports:
