@@ -2,12 +2,12 @@ import PDFDocument from 'pdfkit';
 import type { Columna, Reporte, Tabla } from '../reporte.types.js';
 import { fechaHoraGeneracion, textoCelda } from './formato.js';
 
-type Doc = PDFKit.PDFDocument;
+export type Doc = PDFKit.PDFDocument;
 
-const MARGEN = 36;
+export const MARGEN = 36;
 const ALTO_FILA = 18;
 const ALTO_ENCABEZADO = 22;
-const COLOR = { verde: '#047857', texto: '#0f172a', gris: '#64748b', cebra: '#f1f5f9', linea: '#cbd5e1' };
+export const COLOR = { verde: '#047857', texto: '#0f172a', gris: '#64748b', cebra: '#f1f5f9', linea: '#cbd5e1' };
 
 /** Convierte un reporte en PDF. Con más de 6 columnas la hoja va horizontal. */
 export function reporteAPdf(reporte: Reporte): Promise<Buffer> {
@@ -38,12 +38,12 @@ export function reporteAPdf(reporte: Reporte): Promise<Buffer> {
     }
     dibujarTabla(doc, anexo);
   }
-  piePaginas(doc, reporte);
+  piePaginas(doc, reporte.generado);
   doc.end();
   return terminado;
 }
 
-function anchoUtil(doc: Doc) {
+export function anchoUtil(doc: Doc) {
   return doc.page.width - MARGEN * 2;
 }
 
@@ -107,7 +107,7 @@ function filaEncabezado(doc: Doc, columnas: Columna[], ws: number[]) {
   doc.y = y + ALTO_ENCABEZADO;
 }
 
-function asegurarEspacio(doc: Doc, alto: number): boolean {
+export function asegurarEspacio(doc: Doc, alto: number): boolean {
   if (doc.y + alto > doc.page.height - MARGEN - 20) {
     doc.addPage();
     doc.y = MARGEN;
@@ -116,7 +116,7 @@ function asegurarEspacio(doc: Doc, alto: number): boolean {
   return false;
 }
 
-function dibujarTabla(doc: Doc, tabla: Tabla) {
+export function dibujarTabla(doc: Doc, tabla: Tabla) {
   const { columnas } = tabla;
   const ws = anchos(doc, columnas);
   asegurarEspacio(doc, ALTO_ENCABEZADO + ALTO_FILA * 2);
@@ -127,7 +127,9 @@ function dibujarTabla(doc: Doc, tabla: Tabla) {
       .font('Helvetica-Oblique')
       .fontSize(9)
       .fillColor(COLOR.gris)
-      .text('Sin datos para los filtros elegidos.', MARGEN, doc.y + 8);
+      .text(tabla.textoVacio ?? 'Sin datos para los filtros elegidos.', MARGEN, doc.y + 8);
+    doc.y += 8;
+    doc.x = MARGEN;
     return;
   }
 
@@ -173,7 +175,7 @@ function dibujarTabla(doc: Doc, tabla: Tabla) {
   doc.x = MARGEN;
 }
 
-function piePaginas(doc: Doc, reporte: Reporte) {
+export function piePaginas(doc: Doc, generado: string) {
   const { start, count } = doc.bufferedPageRange();
   for (let i = start; i < start + count; i++) {
     doc.switchToPage(i);
@@ -182,7 +184,7 @@ function piePaginas(doc: Doc, reporte: Reporte) {
     const margenInferior = doc.page.margins.bottom;
     doc.page.margins.bottom = 0;
     doc.font('Helvetica').fontSize(7).fillColor(COLOR.gris);
-    doc.text(`Generado el ${fechaHoraGeneracion(reporte.generado)}`, MARGEN, y, { lineBreak: false });
+    doc.text(`Generado el ${fechaHoraGeneracion(generado)}`, MARGEN, y, { lineBreak: false });
     doc.text(`Página ${i + 1} de ${count}`, MARGEN, y, { width: anchoUtil(doc), align: 'right', lineBreak: false });
     doc.page.margins.bottom = margenInferior;
   }

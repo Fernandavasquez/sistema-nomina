@@ -52,6 +52,18 @@ export class EmpleadosController {
     return this.service.estadoCuenta(id);
   }
 
+  @ApiOperation({ summary: 'Descarga la ficha del empleado en PDF (datos, estado de cuenta, pagos y documentos)' })
+  @Get(':id/ficha-pdf')
+  async fichaPdf(@Param('id', ParseIntPipe) id: number, @Res() res: Response) {
+    const { pdf, nombreArchivo } = await this.service.fichaPdf(id);
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="${nombreArchivo}"`,
+      'Cache-Control': 'private, no-store',
+    });
+    res.send(pdf);
+  }
+
   @Post()
   create(@Body() dto: CreateEmpleadoDto) {
     return this.service.create(dto);

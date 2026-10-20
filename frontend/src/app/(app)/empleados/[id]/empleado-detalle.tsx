@@ -1,7 +1,7 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Banknote, HandCoins, Pencil, Trash2, UserCheck, UserX } from 'lucide-react';
+import { Banknote, FileText, HandCoins, Pencil, Trash2, UserCheck, UserX } from 'lucide-react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useState } from 'react';
@@ -30,6 +30,7 @@ import { api } from '@/lib/api';
 import { date, dpi, money, nombreCompleto, nombrePeriodo } from '@/lib/format';
 import type { Empleado, EstadoCuenta } from '@/lib/types';
 import { DocumentoEmpleado } from './documento-empleado';
+import { descargarArchivo } from '@/lib/descargar';
 import { salarioPorPago } from '@/lib/salario';
 
 export function EmpleadoDetalle() {
@@ -37,6 +38,7 @@ export function EmpleadoDetalle() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { esAdmin } = useSesion();
+  const [descargando, setDescargando] = useState(false);
   const [modal, setModal] = useState<'adelanto' | 'prestamo' | 'estado' | 'eliminar' | null>(null);
 
   const { data, isLoading, error, refetch } = useQuery({
@@ -71,6 +73,18 @@ export function EmpleadoDetalle() {
   const e = data.empleado;
   const activo = e.estado === 'ACTIVO';
 
+  /** Ficha completa en PDF: datos, salario, estado de cuenta, últimos pagos y documentos. */
+  async function descargarFicha() {
+    setDescargando(true);
+    try {
+      await descargarArchivo(`/empleados/${e.id}/ficha-pdf`, 'ficha-empleado.pdf');
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setDescargando(false);
+    }
+  }
+
   return (
     <>
       <PageHeader
@@ -93,6 +107,9 @@ export function EmpleadoDetalle() {
                 </Button>
               </>
             )}
+            <Button variant="secondary" onClick={descargarFicha} loading={descargando}>
+              {!descargando && <FileText className="size-4 text-red-600" />} PDF
+            </Button>
             <ButtonLink href={`/empleados/${e.id}/editar`}>
               <Pencil className="size-4" /> Editar
             </ButtonLink>

@@ -70,7 +70,7 @@ Menú lateral con todas las secciones; en el celular se abre con el botón ☰.
 | Sección | Qué permite |
 |---|---|
 | **Inicio** | Resumen: empleados activos, planilla, adelantos por descontar, saldo de préstamos, pagos pendientes y últimos pagos. |
-| **Empleados** | Lista con búsqueda y filtros; ficha con estado de cuenta, historial de pagos, documentos (foto del DPI y recibo de luz, en foto o PDF) y acciones rápidas (adelanto, préstamo). |
+| **Empleados** | Lista con búsqueda y filtros; ficha con estado de cuenta, historial de pagos, documentos (foto del DPI y recibo de luz, en foto o PDF), acciones rápidas (adelanto, préstamo) y botón **PDF** para descargar la ficha completa del empleado (datos, salario, adelantos, préstamos, últimos pagos y las fotos de sus documentos). |
 | **Adelantos** | Pendientes y ya descontados; registrar, editar o eliminar mientras no se hayan descontado. |
 | **Préstamos** | Avance de pago, historial de cuotas, cambio de cuota y cancelación. |
 | **Períodos y nóminas** | Crear período con fechas sugeridas, calcular, revisar boletas, agregar bonos o descuentos y cerrar el pago. |
@@ -240,7 +240,7 @@ Todos bajo `/api` y con `Authorization: Bearer <token>` (excepto el login). La l
 | Usuarios | `GET/POST /usuarios` · `GET/PATCH/DELETE /usuarios/:id` · `GET /roles` |
 | Puestos | `GET/POST /puestos` (incluye cantidad de empleados) · `GET/PATCH/DELETE /puestos/:id` |
 | Catálogos | `GET /frecuencias-pago` · `/conceptos-nomina` |
-| Empleados | `GET/POST /empleados` · `GET/PATCH/DELETE /empleados/:id` · `GET /empleados/:id/estado-cuenta` · `POST/GET /empleados/:id/foto-dpi` · `POST/GET /empleados/:id/recibo-luz` |
+| Empleados | `GET/POST /empleados` · `GET/PATCH/DELETE /empleados/:id` · `GET /empleados/:id/estado-cuenta` · `GET /empleados/:id/ficha-pdf` · `POST/GET /empleados/:id/foto-dpi` · `POST/GET /empleados/:id/recibo-luz` |
 | Adelantos | `GET/POST /adelantos` · `GET/PATCH/DELETE /adelantos/:id` |
 | Préstamos | `GET/POST /prestamos` · `GET/PATCH/DELETE /prestamos/:id` · `PATCH /prestamos/:id/cancelar` |
 | Períodos | `GET/POST /periodos-nomina` · `GET /periodos-nomina/sugerencia` · `GET/PATCH/DELETE /periodos-nomina/:id` · `POST /periodos-nomina/:id/procesar` · `/revertir` · `/cerrar` · `/anular` · `/reemitir/:empleadoId` |

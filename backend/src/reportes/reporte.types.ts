@@ -19,6 +19,8 @@ export interface Tabla {
   titulo?: string;
   columnas: Columna[];
   filas: Fila[];
+  /** Texto cuando no hay filas (por defecto: "Sin datos para los filtros elegidos."). */
+  textoVacio?: string;
   /** Totales por clave de columna (se muestran en una fila final). */
   totales?: Record<string, number>;
 }

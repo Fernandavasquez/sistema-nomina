@@ -1,4 +1,4 @@
-import { mkdir, unlink, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
 import { extname, join, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
@@ -15,6 +15,7 @@ import { Puesto } from '../puestos/entities/puesto.entity.js';
 import { CreateEmpleadoDto, FiltroEmpleadosDto, UpdateEmpleadoDto } from './dto/empleado.dto.js';
 import { DOCUMENTOS, FORMATOS_DOCUMENTO, MAX_DOCUMENTO_BYTES, type TipoDocumento } from './documentos.js';
 import { Empleado } from './entities/empleado.entity.js';
+import { type DocumentoFicha, fichaEmpleadoPdf } from './ficha-pdf.js';
 
 /** "Pérez Muñoz" → "Perez Munoz" */
 function quitarTildes(texto: string): string {
@@ -170,6 +171,35 @@ export class EmpleadosService {
     await this.borrarArchivo(tipo, empleado[columna]);
     await this.empleados.update(id, { [columna]: nombre });
     return this.findOne(id);
+  }
+
+  /** Ficha del empleado en PDF, con su estado de cuenta y sus documentos (las fotos se incluyen). */
+  async fichaPdf(id: number) {
+    const cuenta = await this.estadoCuenta(id);
+    const { empleado } = cuenta;
+    const documentos: DocumentoFicha[] = [];
+    for (const tipo of Object.keys(DOCUMENTOS) as TipoDocumento[]) {
+      const { columna, carpeta, nombre } = DOCUMENTOS[tipo];
+      const archivo = empleado[columna];
+      if (!archivo) continue;
+      const titulo = nombre.charAt(0).toUpperCase() + nombre.slice(1);
+      const extension = extname(archivo);
+      if (extension === '.jpg' || extension === '.png') {
+        const imagen = await readFile(join(this.dirUploads, carpeta, archivo)).catch(() => undefined);
+        documentos.push(imagen ? { titulo, imagen } : { titulo, nota: 'El archivo no se encontró en el servidor.' });
+      } else {
+        const formato = extension === '.pdf' ? 'PDF' : 'WEBP';
+        documentos.push({ titulo, nota: `Subido en formato ${formato}: se puede ver desde la ficha en el sistema.` });
+      }
+    }
+    const pdf = await fichaEmpleadoPdf({ ...cuenta, documentos, generado: new Date().toISOString() });
+    const slug = `${empleado.apellidos} ${empleado.nombres}`
+      .normalize('NFD')
+      .replace(/[^\w\s-]/g, '')
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, '-');
+    return { pdf, nombreArchivo: `ficha-${slug}.pdf` };
   }
 
   /** Ruta del archivo en el servidor, para enviarlo solo a quien tiene sesión. */
