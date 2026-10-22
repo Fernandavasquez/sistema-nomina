@@ -22,6 +22,11 @@ export class CreatePuestoDto {
   @IsOptional()
   @IsBoolean()
   activo?: boolean;
+
+  @ApiPropertyOptional({ default: false, description: 'Sus empleados pueden recibir viáticos (ej. Piloto)' })
+  @IsOptional()
+  @IsBoolean()
+  recibeViaticos?: boolean;
 }
 
 export class UpdatePuestoDto extends PartialType(CreatePuestoDto) {}

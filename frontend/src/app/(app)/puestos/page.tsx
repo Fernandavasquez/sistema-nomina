@@ -99,6 +99,11 @@ export default function PuestosPage() {
                       <div className="min-w-0">
                         <p className="font-medium text-slate-900">{p.nombre}</p>
                         {p.descripcion && <p className="truncate text-xs text-slate-500">{p.descripcion}</p>}
+                        {p.recibeViaticos && (
+                          <span className="mt-1 inline-block">
+                            <Badge color="blue">Recibe viáticos</Badge>
+                          </span>
+                        )}
                       </div>
                     </div>
                   </Td>

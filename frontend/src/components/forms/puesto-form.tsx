@@ -25,10 +25,11 @@ function PuestoForm({ onClose, puesto, onGuardado }: Props) {
   const [nombre, setNombre] = useState(puesto?.nombre ?? '');
   const [descripcion, setDescripcion] = useState(puesto?.descripcion ?? '');
   const [activo, setActivo] = useState(puesto?.activo ?? true);
+  const [recibeViaticos, setRecibeViaticos] = useState(puesto?.recibeViaticos ?? false);
 
   const guardar = useMutation({
     mutationFn: () => {
-      const body = { nombre, descripcion, activo };
+      const body = { nombre, descripcion, activo, recibeViaticos };
       return puesto ? api.patch<Puesto>(`/puestos/${puesto.id}`, body) : api.post<Puesto>('/puestos', body);
     },
     onSuccess: async (guardado) => {
@@ -68,6 +69,20 @@ function PuestoForm({ onClose, puesto, onGuardado }: Props) {
             <Textarea id={id} rows={2} value={descripcion} onChange={(e) => setDescripcion(e.target.value)} maxLength={255} />
           )}
         </Field>
+        <label className="flex items-start gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={recibeViaticos}
+            onChange={(e) => setRecibeViaticos(e.target.checked)}
+            className="mt-0.5 size-4 accent-emerald-600"
+          />
+          <span>
+            Recibe viáticos
+            <span className="block text-xs text-slate-500">
+              A los empleados de este puesto se les pueden registrar viáticos (por ejemplo, Piloto).
+            </span>
+          </span>
+        </label>
         {puesto && (
           <label className="flex items-start gap-2 text-sm">
             <input

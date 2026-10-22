@@ -2,7 +2,7 @@
 
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import clsx from 'clsx';
-import { Banknote, CalendarRange, FileBarChart, HandCoins, Users } from 'lucide-react';
+import { Banknote, CalendarRange, FileBarChart, HandCoins, MapPin, Users } from 'lucide-react';
 import { useState } from 'react';
 import { BotonesDescarga } from '@/components/botones-descarga';
 import {
@@ -25,7 +25,7 @@ import { api, qs } from '@/lib/api';
 import { date, dateTime, money, nombrePeriodo, today } from '@/lib/format';
 import type { PeriodoNomina, Reporte, ReporteColumna, ReporteTabla } from '@/lib/types';
 
-type TipoReporte = 'planilla' | 'pagos' | 'adelantos' | 'prestamos' | 'empleados';
+type TipoReporte = 'planilla' | 'pagos' | 'adelantos' | 'prestamos' | 'viaticos' | 'empleados';
 
 const REPORTES: { tipo: TipoReporte; titulo: string; descripcion: string; icono: typeof Users }[] = [
   {
@@ -42,6 +42,12 @@ const REPORTES: { tipo: TipoReporte; titulo: string; descripcion: string; icono:
   },
   { tipo: 'adelantos', titulo: 'Adelantos', descripcion: 'Adelantos entregados, pendientes o ya descontados.', icono: HandCoins },
   { tipo: 'prestamos', titulo: 'Cartera de préstamos', descripcion: 'Prestado, pagado y saldo por cobrar.', icono: Banknote },
+  {
+    tipo: 'viaticos',
+    titulo: 'Viáticos',
+    descripcion: 'Viáticos entregados: destino, asunto, fechas y cantidad.',
+    icono: MapPin,
+  },
   { tipo: 'empleados', titulo: 'Listado de empleados', descripcion: 'Datos, salario y cuenta bancaria.', icono: Users },
 ];
 
@@ -110,10 +116,11 @@ function ReporteSeleccionado({ tipo }: { tipo: TipoReporte }) {
     pagos: `/reportes/pagos${qs({ desde, hasta })}`,
     adelantos: `/reportes/adelantos${qs({ desde, hasta, estado })}`,
     prestamos: `/reportes/prestamos${qs({ estado })}`,
+    viaticos: `/reportes/viaticos${qs({ desde, hasta })}`,
     empleados: `/reportes/empleados${qs({ estado })}`,
   }[tipo];
 
-  const rangoInvalido = (tipo === 'pagos' || tipo === 'adelantos') && desde > hasta;
+  const rangoInvalido = (tipo === 'pagos' || tipo === 'adelantos' || tipo === 'viaticos') && desde > hasta;
 
   return (
     <div className="space-y-4">
@@ -141,7 +148,7 @@ function ReporteSeleccionado({ tipo }: { tipo: TipoReporte }) {
             </Field>
           )}
 
-          {(tipo === 'pagos' || tipo === 'adelantos') && (
+          {(tipo === 'pagos' || tipo === 'adelantos' || tipo === 'viaticos') && (
             <>
               <Field label="Desde">
                 {(id) => <Input id={id} type="date" value={desde} onChange={(e) => setDesde(e.target.value)} />}

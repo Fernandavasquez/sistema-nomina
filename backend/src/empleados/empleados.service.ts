@@ -16,6 +16,7 @@ import { Prestamo } from '../prestamos/entities/prestamo.entity.js';
 import { Puesto } from '../puestos/entities/puesto.entity.js';
 import { CreateEmpleadoDto, FiltroEmpleadosDto, UpdateEmpleadoDto } from './dto/empleado.dto.js';
 import { DOCUMENTOS, FORMATOS_DOCUMENTO, MAX_DOCUMENTO_BYTES, type TipoDocumento } from './documentos.js';
+import { Viatico } from '../viaticos/entities/viatico.entity.js';
 import { Empleado } from './entities/empleado.entity.js';
 import { type DocumentoFicha, fichaEmpleadoPdf } from './ficha-pdf.js';
 
@@ -41,6 +42,7 @@ export class EmpleadosService {
     @InjectRepository(Prestamo) private readonly prestamos: Repository<Prestamo>,
     @InjectRepository(NominaEncabezado) private readonly nominas: Repository<NominaEncabezado>,
     @InjectRepository(Empresa) private readonly empresas: Repository<Empresa>,
+    @InjectRepository(Viatico) private readonly viaticos: Repository<Viatico>,
     config: ConfigService,
   ) {
     this.dirUploads = resolve(config.get('UPLOAD_DIR', 'uploads'));
@@ -126,14 +128,15 @@ export class EmpleadosService {
 
   async remove(id: number, alcance: Alcance) {
     const empleado = await this.findOne(id, alcance);
-    const [tieneNominas, tieneAdelantos, tienePrestamos] = await Promise.all([
+    const [tieneNominas, tieneAdelantos, tienePrestamos, tieneViaticos] = await Promise.all([
       this.nominas.existsBy({ empleadoId: id }),
       this.adelantos.existsBy({ empleadoId: id }),
       this.prestamos.existsBy({ empleadoId: id }),
+      this.viaticos.existsBy({ empleadoId: id }),
     ]);
-    if (tieneNominas || tieneAdelantos || tienePrestamos) {
+    if (tieneNominas || tieneAdelantos || tienePrestamos || tieneViaticos) {
       throw new ConflictException(
-        'El empleado tiene historial (nóminas, adelantos o préstamos). Cambie su estado a INACTIVO en lugar de eliminarlo.',
+        'El empleado tiene historial (nóminas, adelantos, préstamos o viáticos). Cambie su estado a INACTIVO en lugar de eliminarlo.',
       );
     }
     await this.empleados.remove(empleado);
@@ -208,7 +211,10 @@ export class EmpleadosService {
         documentos.push({ titulo, nota: `Subido en formato ${formato}: se puede ver desde la ficha en el sistema.` });
       }
     }
-    const pdf = await fichaEmpleadoPdf({ ...cuenta, documentos, generado: new Date().toISOString() });
+    const viaticos = empleado.puesto.recibeViaticos
+      ? await this.viaticos.find({ where: { empleadoId: id }, order: { fechaEntrega: 'DESC' }, take: 10 })
+      : undefined;
+    const pdf = await fichaEmpleadoPdf({ ...cuenta, documentos, viaticos, generado: new Date().toISOString() });
     const slug = `${empleado.apellidos} ${empleado.nombres}`
       .normalize('NFD')
       .replace(/[^\w\s-]/g, '')

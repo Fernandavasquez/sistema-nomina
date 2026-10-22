@@ -11,4 +11,8 @@ export class Puesto extends BaseEntity {
 
   @Column({ default: true })
   activo: boolean;
+
+  /** Los empleados de este puesto pueden recibir viáticos (por ejemplo, Piloto). */
+  @Column({ default: false })
+  recibeViaticos: boolean;
 }

@@ -118,6 +118,7 @@ erDiagram
     tipos_frecuencia_pago ||--o{ periodos_nomina : agrupa
     empleados ||--o{ adelantos : solicita
     empleados ||--o{ prestamos : solicita
+    empleados ||--o{ viaticos : recibe
     empleados ||--o{ nominas_encabezado : recibe
     periodos_nomina ||--o{ nominas_encabezado : contiene
     nominas_encabezado ||--o{ nominas_detalle : "se compone de"
@@ -136,7 +137,7 @@ El diseño original se respetó (mismas tablas y relaciones). Estas son las mejo
 | `Estado` de empleado como lista fija (`ACTIVO`/`INACTIVO`) | Evita valores escritos de distintas formas ("activo", "Activo "...). Lo mismo para préstamos, períodos y nóminas. |
 | Nuevos campos en empleado: `fechaIngreso`, `email` | Un empleado contratado a mitad de período no se incluye en pagos anteriores a su ingreso. |
 | `salarioMensual` = **salario del mes** | El pago semanal o quincenal se calcula solo (ver *Cálculo del salario*). La boleta guarda el salario y los días con que se calculó, así el historial no cambia si después se sube el salario. |
-| Documentos del empleado (foto del DPI, recibo de luz) se guardan como archivos, no dentro de la BD | La BD solo guarda el nombre. Se aceptan JPG, PNG, WEBP o PDF de hasta 5 MB y **solo se descargan con sesión iniciada** porque son datos sensibles. Agregar otro documento es una línea en `backend/src/empleados/documentos.ts` más su columna. |
+| Documentos del empleado (foto del DPI, recibo de luz, licencia de conducir) se guardan como archivos, no dentro de la BD | La BD solo guarda el nombre. Se aceptan JPG, PNG, WEBP o PDF de hasta 5 MB y **solo se descargan con sesión iniciada** porque son datos sensibles. Agregar otro documento es una línea en `backend/src/empleados/documentos.ts` más su columna. |
 | Conceptos con `esSistema` | `SUELDO_BASE`, `ADELANTO` y `PRESTAMO` los calcula el sistema y no se pueden borrar. Los demás (`BONO`, `HORAS_EXTRA`, `OTRO_DESCUENTO`...) los crea el administrador libremente. **Agregar un nuevo tipo de bono o descuento no requiere cambiar la base de datos.** |
 | `createdAt` / `updatedAt` en todas las tablas | Auditoría básica: saber cuándo se creó o modificó cada registro. |
 | Usuario: `ultimoAcceso` | Ver quién ha usado el sistema recientemente. |
@@ -159,6 +160,16 @@ Un solo sistema para todas las empresas del grupo.
 - **Acceso de los usuarios:** el administrador ve todas las empresas. A cada operador se le marcan en *Usuarios* las empresas que puede ver; lo de otras empresas no le aparece ni lo puede modificar.
 - **Agregar una empresa:** *Administración → Empresas → Nueva empresa*. Una empresa con historial no se elimina, se desactiva.
 - **En la API:** la empresa elegida viaja en el encabezado `X-Empresa-Id` (`todas` o sin encabezado = todas las permitidas). Al crear empleados o períodos se puede enviar `empresaId`; si no, se usa la del encabezado.
+
+## Viáticos
+
+Dinero que se entrega a un empleado (normalmente un piloto) para los gastos de un viaje. **Es solo registro y control: no cambia su boleta de pago.**
+
+- **Quiénes:** solo los empleados cuyo puesto tiene marcada la opción **Recibe viáticos** (en *Puestos*). Al instalar este cambio, el puesto *Piloto* quedó marcado.
+- **Datos:** viático (destino), asunto (motivo), fecha en que se dio, hasta qué día dura el viaje y la cantidad.
+- **Estado según las fechas:** *Programado* (aún no sale), *En viaje* o *Finalizado*.
+- **Dónde:** menú *Viáticos* (con filtros por fecha y búsqueda), la tarjeta *Viáticos* en la ficha del piloto, la ficha en PDF y el reporte *Viáticos* (Excel/PDF).
+- Un empleado con viáticos no se puede eliminar; se inactiva.
 
 ## Cómo funciona el pago (flujo de nómina)
 
@@ -236,7 +247,7 @@ Reglas de seguridad:
 
 | Acción | ADMIN | OPERADOR |
 |---|:-:|:-:|
-| Empleados, adelantos, préstamos | ✅ | ✅ |
+| Empleados, adelantos, préstamos, viáticos | ✅ | ✅ |
 | Crear, procesar y revertir períodos; bonos manuales | ✅ | ✅ |
 | **Cerrar período (confirmar pago)** | ✅ | ❌ |
 | **Anular período o boleta; confirmar boleta nueva** | ✅ | ❌ |
@@ -260,13 +271,14 @@ Todos bajo `/api` y con `Authorization: Bearer <token>` (excepto el login). La l
 | Usuarios | `GET/POST /usuarios` · `GET/PATCH/DELETE /usuarios/:id` · `GET /roles` |
 | Puestos | `GET/POST /puestos` (incluye cantidad de empleados) · `GET/PATCH/DELETE /puestos/:id` |
 | Catálogos | `GET /frecuencias-pago` · `/conceptos-nomina` |
-| Empleados | `GET/POST /empleados` · `GET/PATCH/DELETE /empleados/:id` · `GET /empleados/:id/estado-cuenta` · `GET /empleados/:id/ficha-pdf` · `POST/GET /empleados/:id/foto-dpi` · `POST/GET /empleados/:id/recibo-luz` |
+| Empleados | `GET/POST /empleados` · `GET/PATCH/DELETE /empleados/:id` · `GET /empleados/:id/estado-cuenta` · `GET /empleados/:id/ficha-pdf` · `POST/GET /empleados/:id/foto-dpi` · `POST/GET /empleados/:id/recibo-luz` · `POST/GET /empleados/:id/licencia` |
+| Viáticos | `GET/POST /viaticos` (filtros: `empleadoId`, `desde`, `hasta`, `buscar`) · `GET/PATCH/DELETE /viaticos/:id` |
 | Adelantos | `GET/POST /adelantos` · `GET/PATCH/DELETE /adelantos/:id` |
 | Préstamos | `GET/POST /prestamos` · `GET/PATCH/DELETE /prestamos/:id` · `PATCH /prestamos/:id/cancelar` |
 | Períodos | `GET/POST /periodos-nomina` · `GET /periodos-nomina/sugerencia` · `GET/PATCH/DELETE /periodos-nomina/:id` · `POST /periodos-nomina/:id/procesar` · `/revertir` · `/cerrar` · `/anular` · `/reemitir/:empleadoId` |
 | Nóminas | `GET /nominas` · `GET /nominas/:id` (boleta) · `POST /nominas/:id/detalles` · `DELETE /nominas/:id/detalles/:detalleId` · `PATCH /nominas/:id/faltas` · `PATCH /nominas/:id/metodo-pago` · `POST /nominas/:id/anular` · `POST /nominas/:id/confirmar` · `DELETE /nominas/:id` (descartar boleta nueva) |
 | Dashboard | `GET /dashboard/resumen` |
-| Reportes *(ADMIN)* | `GET /reportes/planilla/:periodoId` · `/reportes/pagos` · `/reportes/adelantos` · `/reportes/prestamos` · `/reportes/empleados` — todos con `?formato=json|xlsx|pdf` |
+| Reportes *(ADMIN)* | `GET /reportes/planilla/:periodoId` · `/reportes/pagos` · `/reportes/adelantos` · `/reportes/prestamos` · `/reportes/viaticos` · `/reportes/empleados` — todos con `?formato=json|xlsx|pdf` |
 
 ---
 

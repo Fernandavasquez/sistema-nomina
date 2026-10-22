@@ -105,7 +105,7 @@ export class SeedService implements OnApplicationBootstrap {
     // Reutiliza los puestos que ya existan (por ejemplo, si se vació la base pero se dejaron los catálogos).
     const puestos: Puesto[] = [];
     for (const p of [
-      { nombre: 'Piloto', descripcion: 'Conduce el vehículo de reparto' },
+      { nombre: 'Piloto', descripcion: 'Conduce el vehículo de reparto', recibeViaticos: true },
       { nombre: 'Ayudante', descripcion: 'Apoya al piloto en carga y descarga' },
       { nombre: 'Bodeguero', descripcion: 'Inventario y despacho de mercadería' },
       { nombre: 'Administrativo', descripcion: 'Oficina y contabilidad' },

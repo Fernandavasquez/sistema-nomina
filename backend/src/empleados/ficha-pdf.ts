@@ -13,6 +13,7 @@ import { fechaCorta, textoCelda } from '../reportes/exportadores/formato.js';
 import type { Adelanto } from '../adelantos/entities/adelanto.entity.js';
 import type { NominaEncabezado } from '../nominas/entities/nomina-encabezado.entity.js';
 import type { Prestamo } from '../prestamos/entities/prestamo.entity.js';
+import type { Viatico } from '../viaticos/entities/viatico.entity.js';
 import type { Empleado } from './entities/empleado.entity.js';
 
 /** Un documento adjunto: si es foto (JPG/PNG) se dibuja; si es PDF o WEBP solo se menciona. */
@@ -30,6 +31,8 @@ export interface DatosFicha {
   prestamosActivos: Prestamo[];
   ultimasNominas: NominaEncabezado[];
   documentos: DocumentoFicha[];
+  /** Últimos viáticos (solo si su puesto recibe viáticos). */
+  viaticos?: Viatico[];
   generado: string;
 }
 
@@ -147,6 +150,27 @@ export function fichaEmpleadoPdf(datos: DatosFicha): Promise<Buffer> {
     })),
     textoVacio: 'Todavía no tiene pagos.',
   });
+
+  if (datos.viaticos) {
+    seccion(doc, 'Últimos viáticos');
+    dibujarTabla(doc, {
+      columnas: [
+        { clave: 'entrega', titulo: 'Entregado', tipo: 'fecha', ancho: 1 },
+        { clave: 'hasta', titulo: 'Hasta', tipo: 'fecha', ancho: 1 },
+        { clave: 'destino', titulo: 'Destino', ancho: 1.6 },
+        { clave: 'asunto', titulo: 'Asunto', ancho: 2.6 },
+        { clave: 'monto', titulo: 'Cantidad', tipo: 'dinero', ancho: 1.1 },
+      ],
+      filas: datos.viaticos.map((v) => ({
+        entrega: v.fechaEntrega,
+        hasta: v.fechaHasta,
+        destino: v.destino,
+        asunto: v.asunto,
+        monto: v.monto,
+      })),
+      textoVacio: 'No tiene viáticos registrados.',
+    });
+  }
 
   documentos(doc, datos.documentos);
   piePaginas(doc, datos.generado);

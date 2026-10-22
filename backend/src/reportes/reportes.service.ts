@@ -13,6 +13,8 @@ import { NominaDetalle } from '../nominas/entities/nomina-detalle.entity.js';
 import { NominaEncabezado } from '../nominas/entities/nomina-encabezado.entity.js';
 import { PeriodoNomina } from '../periodos-nomina/entities/periodo-nomina.entity.js';
 import { Prestamo } from '../prestamos/entities/prestamo.entity.js';
+import { Viatico } from '../viaticos/entities/viatico.entity.js';
+import { estadoViatico } from '../viaticos/viaticos.service.js';
 import { ReporteAdelantosDto, ReporteEmpleadosDto, ReportePrestamosDto, RangoFechasDto } from './dto/reporte.dto.js';
 import { fechaCorta, textoCelda } from './exportadores/formato.js';
 import type { Columna, Fila, Reporte } from './reporte.types.js';
@@ -372,6 +374,58 @@ export class ReportesService {
       filas,
       totales,
       nombreArchivo: `prestamos-${dto.estado?.toLowerCase() ?? 'todos'}-${today()}`,
+      generado: new Date().toISOString(),
+    };
+  }
+
+  // ───────────────────────── Viáticos ─────────────────────────
+
+  /** Viáticos entregados en el rango de fechas: a quién, a dónde, para qué y cuánto. */
+  async viaticos(dto: RangoFechasDto, alcance: Alcance): Promise<Reporte> {
+    const { desde, hasta } = this.rango(dto);
+    const empresas = await this.empresas(alcance);
+    const lista = await this.db.getRepository(Viatico).find({
+      where: { fechaEntrega: Between(desde, hasta), empleado: { empresaId: In(alcance.ids) } },
+      relations: { empleado: true },
+      order: { fechaEntrega: 'ASC', id: 'ASC' },
+    });
+    const ESTADOS = { PROGRAMADO: 'Programado', EN_VIAJE: 'En viaje', FINALIZADO: 'Finalizado' } as const;
+    const filas: Fila[] = lista.map((v) => ({
+      empleado: nombre(v.empleado),
+      empresa: v.empleado.empresa.nombre,
+      entrega: v.fechaEntrega,
+      hasta: v.fechaHasta,
+      destino: v.destino,
+      asunto: v.asunto,
+      monto: v.monto,
+      estado: ESTADOS[estadoViatico(v)],
+    }));
+    const totales = sumar(filas, 'monto');
+    const pilotos = new Set(lista.map((v) => v.empleadoId)).size;
+
+    return {
+      titulo: 'Viáticos',
+      subtitulo: `${empresas.texto} · Entregados del ${fechaCorta(desde)} al ${fechaCorta(hasta)}`,
+      resumen: [
+        { etiqueta: 'Viáticos', valor: String(lista.length) },
+        { etiqueta: 'Empleados', valor: String(pilotos) },
+        { etiqueta: 'Total entregado', valor: dinero(totales.monto) },
+      ],
+      columnas: conEmpresa(
+        [
+          { clave: 'empleado', titulo: 'Empleado', ancho: 2 },
+          { clave: 'entrega', titulo: 'Entregado', tipo: 'fecha', ancho: 0.9 },
+          { clave: 'hasta', titulo: 'Hasta', tipo: 'fecha', ancho: 0.9 },
+          { clave: 'destino', titulo: 'Destino', ancho: 1.5 },
+          { clave: 'asunto', titulo: 'Asunto', ancho: 2.5 },
+          { clave: 'monto', titulo: 'Cantidad', tipo: 'dinero', ancho: 1 },
+          { clave: 'estado', titulo: 'Estado', ancho: 0.9 },
+        ],
+        empresas.varias,
+      ),
+      filas,
+      totales,
+      nombreArchivo: `viaticos-${desde}-a-${hasta}`,
       generado: new Date().toISOString(),
     };
   }

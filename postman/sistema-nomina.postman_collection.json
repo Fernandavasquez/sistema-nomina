@@ -60,6 +60,26 @@
       "value": ""
     },
     {
+      "key": "sufijoViatico",
+      "value": ""
+    },
+    {
+      "key": "puestoPilotoId",
+      "value": ""
+    },
+    {
+      "key": "dpiPiloto",
+      "value": ""
+    },
+    {
+      "key": "pilotoId",
+      "value": ""
+    },
+    {
+      "key": "viaticoId",
+      "value": ""
+    },
+    {
       "key": "empresaId",
       "value": ""
     },
@@ -3263,6 +3283,66 @@
           }
         },
         {
+          "name": "Subir licencia de conducir",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/empleados/{{empleadoId}}/licencia",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "empleados",
+                "{{empleadoId}}",
+                "licencia"
+              ]
+            },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "archivo",
+                  "type": "file",
+                  "src": []
+                }
+              ]
+            },
+            "description": "Seleccione una foto (JPG/PNG/WEBP) o PDF de hasta 5 MB en el campo \"archivo\". Si ya tenía una, se reemplaza."
+          }
+        },
+        {
+          "name": "Ver licencia de conducir",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/empleados/{{empleadoId}}/licencia",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "empleados",
+                "{{empleadoId}}",
+                "licencia"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Devuelve el archivo o avisa que no existe', () => pm.expect(pm.response.code).to.be.oneOf([200, 404]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
           "name": "Ver recibo de luz",
           "request": {
             "method": "GET",
@@ -3907,6 +3987,529 @@
             }
           },
           "event": []
+        }
+      ]
+    },
+    {
+      "name": "Viáticos",
+      "description": "Dinero para gastos de viaje de los pilotos. Solo registro: no cambia la boleta. Solo para empleados cuyo puesto tiene \"recibeViaticos\".",
+      "item": [
+        {
+          "name": "Crear puesto que recibe viáticos",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/puestos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "puestos"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Piloto {{sufijoViatico}}\",\n  \"recibeViaticos\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('sufijoViatico', Date.now().toString().slice(-6));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "pm.test('Recibe viáticos', () => pm.expect(pm.response.json().recibeViaticos).to.eql(true));",
+                  "pm.collectionVariables.set('puestoPilotoId', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Crear piloto",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/empleados",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "empleados"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombres\": \"Pablo\",\n  \"apellidos\": \"Piloto Postman\",\n  \"dpi\": \"{{dpiPiloto}}\",\n  \"telefono\": \"55554321\",\n  \"direccion\": \"Zona 1, Ciudad de Guatemala\",\n  \"fechaIngreso\": \"2026-01-05\",\n  \"salarioMensual\": 4000,\n  \"puestoId\": \"{{puestoPilotoId}}\",\n  \"frecuenciaPagoId\": \"{{frecuenciaId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('dpiPiloto', String(Math.floor(1e12 + Math.random() * 9e12)));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('pilotoId', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Registrar viático",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/viaticos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "viaticos"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"empleadoId\": \"{{pilotoId}}\",\n  \"destino\": \"Quetzaltenango\",\n  \"asunto\": \"Entrega de materiales a cliente\",\n  \"fechaEntrega\": \"2026-11-05\",\n  \"fechaHasta\": \"2026-11-08\",\n  \"monto\": 450\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "const v = pm.response.json();",
+                  "pm.test('Cantidad como número', () => pm.expect(v.monto).to.eql(450));",
+                  "pm.test('Trae su estado', () => pm.expect(['PROGRAMADO', 'EN_VIAJE', 'FINALIZADO']).to.include(v.estado));",
+                  "pm.collectionVariables.set('viaticoId', v.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Validación: puesto que no recibe viáticos",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/viaticos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "viaticos"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"empleadoId\": \"{{empleadoId}}\",\n  \"destino\": \"Escuintla\",\n  \"asunto\": \"Prueba\",\n  \"fechaEntrega\": \"2026-11-05\",\n  \"fechaHasta\": \"2026-11-06\",\n  \"monto\": 100\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Lo explica', () => pm.expect(pm.response.json().message).to.include('no recibe viáticos'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Validación: \"hasta\" antes de la entrega",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/viaticos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "viaticos"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"empleadoId\": \"{{pilotoId}}\",\n  \"destino\": \"Petén\",\n  \"asunto\": \"Prueba\",\n  \"fechaEntrega\": \"2026-11-05\",\n  \"fechaHasta\": \"2026-11-01\",\n  \"monto\": 100\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Listar viáticos del piloto",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/viaticos?empleadoId={{pilotoId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "viaticos"
+              ],
+              "query": [
+                {
+                  "key": "empleadoId",
+                  "value": "{{pilotoId}}"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Tiene 1 viático', () => pm.expect(pm.response.json().length).to.eql(1));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Buscar viáticos por destino y fechas",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/viaticos?buscar=quetzal&desde=2026-11-01&hasta=2026-11-30",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "viaticos"
+              ],
+              "query": [
+                {
+                  "key": "buscar",
+                  "value": "quetzal"
+                },
+                {
+                  "key": "desde",
+                  "value": "2026-11-01"
+                },
+                {
+                  "key": "hasta",
+                  "value": "2026-11-30"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Editar viático",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/viaticos/{{viaticoId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "viaticos",
+                "{{viaticoId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"monto\": 500,\n  \"asunto\": \"Entrega y cobro a cliente\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Cantidad actualizada', () => pm.expect(pm.response.json().monto).to.eql(500));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reporte de viáticos (JSON)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/reportes/viaticos?formato=json&desde=2026-11-01&hasta=2026-11-30",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reportes",
+                "viaticos"
+              ],
+              "query": [
+                {
+                  "key": "formato",
+                  "value": "json"
+                },
+                {
+                  "key": "desde",
+                  "value": "2026-11-01"
+                },
+                {
+                  "key": "hasta",
+                  "value": "2026-11-30"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Incluye el viático', () => pm.expect(pm.response.json().filas.some(f => f.destino === 'Quetzaltenango')).to.eql(true));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Validación: no se elimina un empleado con viáticos",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/empleados/{{pilotoId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "empleados",
+                "{{pilotoId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 409', () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Eliminar viático",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/viaticos/{{viaticoId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "viaticos",
+                "{{viaticoId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Eliminar piloto de prueba",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/empleados/{{pilotoId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "empleados",
+                "{{pilotoId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Eliminar puesto de prueba",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/puestos/{{puestoPilotoId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "puestos",
+                "{{puestoPilotoId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
         }
       ]
     },

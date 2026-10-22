@@ -6,6 +6,7 @@
 export const DOCUMENTOS = {
   'foto-dpi': { columna: 'fotoDpi', carpeta: 'dpi', nombre: 'foto del DPI' },
   'recibo-luz': { columna: 'reciboLuz', carpeta: 'recibos-luz', nombre: 'recibo de luz' },
+  licencia: { columna: 'licenciaConducir', carpeta: 'licencias', nombre: 'licencia de conducir' },
 } as const;
 
 export type TipoDocumento = keyof typeof DOCUMENTOS;

@@ -13,6 +13,7 @@ import type { Empleado } from '@/lib/types';
 const DOCUMENTOS = {
   'foto-dpi': { campo: 'fotoDpi', titulo: 'Foto del DPI', guardado: 'Foto del DPI guardada' },
   'recibo-luz': { campo: 'reciboLuz', titulo: 'Recibo de luz', guardado: 'Recibo de luz guardado' },
+  licencia: { campo: 'licenciaConducir', titulo: 'Licencia de conducir', guardado: 'Licencia de conducir guardada' },
 } as const;
 
 export type TipoDocumento = keyof typeof DOCUMENTOS;

@@ -59,6 +59,10 @@ export class Empleado extends BaseEntity {
   @Column({ type: 'varchar', length: 255, nullable: true })
   reciboLuz: string | null;
 
+  /** Licencia de conducir, foto o PDF (sobre todo para pilotos). */
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  licenciaConducir: string | null;
+
   /** Empresa que lo contrató. Sus pagos anteriores quedan en la empresa donde se hicieron. */
   @Index()
   @Column()

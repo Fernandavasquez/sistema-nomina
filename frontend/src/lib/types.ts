@@ -56,6 +56,8 @@ export interface Puesto extends Base {
   nombre: string;
   descripcion: string | null;
   activo: boolean;
+  /** Sus empleados pueden recibir viáticos (ej. Piloto). */
+  recibeViaticos: boolean;
   /** Solo en GET /puestos */
   empleadosActivos?: number;
   empleadosTotal?: number;
@@ -90,6 +92,7 @@ export interface Empleado extends Base {
   numeroCuenta: string | null;
   fotoDpi: string | null;
   reciboLuz: string | null;
+  licenciaConducir: string | null;
   empresaId: number;
   empresa: Empresa;
   puestoId: number;
@@ -105,6 +108,23 @@ export interface Adelanto extends Base {
   fechaSolicitud: string;
   aplicado: boolean;
   observacion: string | null;
+}
+
+export type EstadoViatico = 'PROGRAMADO' | 'EN_VIAJE' | 'FINALIZADO';
+
+/** Dinero para gastos de un viaje (solo registro, no afecta la boleta). */
+export interface Viatico extends Base {
+  empleadoId: number;
+  empleado?: Empleado;
+  /** A dónde va. */
+  destino: string;
+  /** Motivo del viaje. */
+  asunto: string;
+  fechaEntrega: string;
+  /** Hasta qué día dura el viaje. */
+  fechaHasta: string;
+  monto: number;
+  estado: EstadoViatico;
 }
 
 export interface Prestamo extends Base {

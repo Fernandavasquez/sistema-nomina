@@ -81,7 +81,7 @@ export class EmpleadosController {
     return this.service.remove(id, alcance);
   }
 
-  // ───── Documentos (foto del DPI, recibo de luz) ─────
+  // ───── Documentos (foto del DPI, recibo de luz, licencia de conducir) ─────
   // Son datos sensibles: solo se descargan con sesión, nunca como archivos públicos.
 
   @ApiOperation({ summary: 'Sube o reemplaza la foto del DPI (JPG, PNG, WEBP o PDF, máx. 5 MB)' })
@@ -118,6 +118,24 @@ export class EmpleadosController {
   @Get(':id/recibo-luz')
   verReciboLuz(@Param('id', ParseIntPipe) id: number, @AlcanceEmpresas() alcance: Alcance, @Res() res: Response) {
     return this.enviarDocumento(id, 'recibo-luz', alcance, res);
+  }
+
+  @ApiOperation({ summary: 'Sube o reemplaza la licencia de conducir (JPG, PNG, WEBP o PDF, máx. 5 MB)' })
+  @Post(':id/licencia')
+  @ApiConsumes('multipart/form-data')
+  @ApiBody(CUERPO_ARCHIVO)
+  @UseInterceptors(SUBIR_ARCHIVO)
+  subirLicencia(
+    @Param('id', ParseIntPipe) id: number,
+    @AlcanceEmpresas() alcance: Alcance,
+    @UploadedFile() archivo?: Express.Multer.File,
+  ) {
+    return this.service.guardarDocumento(id, 'licencia', alcance, archivo);
+  }
+
+  @Get(':id/licencia')
+  verLicencia(@Param('id', ParseIntPipe) id: number, @AlcanceEmpresas() alcance: Alcance, @Res() res: Response) {
+    return this.enviarDocumento(id, 'licencia', alcance, res);
   }
 
   private async enviarDocumento(id: number, tipo: TipoDocumento, alcance: Alcance, res: Response) {

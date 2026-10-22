@@ -11,6 +11,7 @@ import {
   KeyRound,
   LayoutDashboard,
   LogOut,
+  MapPin,
   Menu,
   Settings2,
   ShieldCheck,
@@ -44,6 +45,7 @@ const NAV: { titulo: string; items: NavItem[] }[] = [
       { href: '/empleados', label: 'Empleados', icon: Users },
       { href: '/adelantos', label: 'Adelantos', icon: HandCoins },
       { href: '/prestamos', label: 'Préstamos', icon: Banknote },
+      { href: '/viaticos', label: 'Viáticos', icon: MapPin },
     ],
   },
   {

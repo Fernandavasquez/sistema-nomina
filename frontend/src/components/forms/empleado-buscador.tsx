@@ -21,11 +21,14 @@ export function EmpleadoBuscador({
   value,
   onChange,
   invalid,
+  filtro,
 }: {
   id: string;
   value: Empleado | null;
   onChange: (empleado: Empleado | null) => void;
   invalid?: boolean;
+  /** Solo muestra los empleados que cumplen esta condición (ej. puestos que reciben viáticos). */
+  filtro?: (empleado: Empleado) => boolean;
 }) {
   const listaId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -41,7 +44,7 @@ export function EmpleadoBuscador({
     placeholderData: keepPreviousData,
     staleTime: 30_000,
   });
-  const resultados = data?.slice(0, MAX_RESULTADOS) ?? [];
+  const resultados = (filtro ? data?.filter(filtro) : data)?.slice(0, MAX_RESULTADOS) ?? [];
   const restantes = (data?.length ?? 0) - resultados.length;
 
   function elegir(empleado: Empleado) {

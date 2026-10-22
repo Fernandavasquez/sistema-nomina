@@ -8,11 +8,21 @@ import { Puesto } from '../puestos/entities/puesto.entity.js';
 import { EmpleadosController } from './empleados.controller.js';
 import { EmpleadosService } from './empleados.service.js';
 import { Empresa } from '../empresas/entities/empresa.entity.js';
+import { Viatico } from '../viaticos/entities/viatico.entity.js';
 import { Empleado } from './entities/empleado.entity.js';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Empleado, Puesto, TipoFrecuenciaPago, Adelanto, Prestamo, NominaEncabezado, Empresa]),
+    TypeOrmModule.forFeature([
+      Empleado,
+      Puesto,
+      TipoFrecuenciaPago,
+      Adelanto,
+      Prestamo,
+      NominaEncabezado,
+      Empresa,
+      Viatico,
+    ]),
   ],
   controllers: [EmpleadosController],
   providers: [EmpleadosService],

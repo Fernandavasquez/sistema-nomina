@@ -62,6 +62,12 @@ export class ReportesController {
     return this.responder(res, await this.service.prestamos(q, alcance), q.formato);
   }
 
+  @ApiOperation({ summary: 'Viáticos entregados en un rango de fechas' })
+  @Get('viaticos')
+  async viaticos(@Query() q: RangoFechasDto, @AlcanceEmpresas() alcance: Alcance, @Res() res: Response) {
+    return this.responder(res, await this.service.viaticos(q, alcance), q.formato);
+  }
+
   @ApiOperation({ summary: 'Listado de empleados con salario y datos bancarios' })
   @Get('empleados')
   async empleados(@Query() q: ReporteEmpleadosDto, @AlcanceEmpresas() alcance: Alcance, @Res() res: Response) {

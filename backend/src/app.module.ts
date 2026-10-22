@@ -23,6 +23,7 @@ import { PuestosModule } from './puestos/puestos.module.js';
 import { ReportesModule } from './reportes/reportes.module.js';
 import { RolesModule } from './roles/roles.module.js';
 import { UsuariosModule } from './usuarios/usuarios.module.js';
+import { ViaticosModule } from './viaticos/viaticos.module.js';
 
 @Module({
   imports: [
@@ -45,6 +46,7 @@ import { UsuariosModule } from './usuarios/usuarios.module.js';
     EmpleadosModule,
     AdelantosModule,
     PrestamosModule,
+    ViaticosModule,
     PeriodosNominaModule,
     NominasModule,
     DashboardModule,
