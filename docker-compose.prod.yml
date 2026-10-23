@@ -1,0 +1,43 @@
+# Configuración para el SERVIDOR (producción). Se usa junto con docker-compose.yml:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+#
+# Diferencias con el entorno local:
+#   - Solo Caddy queda expuesto a internet (puertos 80 y 443) y obtiene el certificado HTTPS solo.
+#   - La base de datos, el backend y el frontend NO se publican: solo se hablan por la red interna.
+#   - Cookies seguras (solo viajan cifradas por HTTPS).
+# Variables en el archivo .env del servidor (vea deploy/README.md).
+services:
+  db:
+    ports: !reset []
+
+  backend:
+    ports: !reset []
+    environment:
+      CORS_ORIGIN: https://${DOMINIO:?Defina DOMINIO en el archivo .env}
+
+  frontend:
+    ports: !reset []
+    environment:
+      COOKIE_SECURE: 'true'
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: nomina-caddy
+    restart: unless-stopped
+    depends_on:
+      - frontend
+    environment:
+      DOMINIO: ${DOMINIO}
+    ports:
+      - '80:80'
+      - '443:443'
+      - '443:443/udp'
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  caddy_data:
+  caddy_config:

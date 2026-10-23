@@ -1,0 +1,21 @@
+# Caddy recibe las visitas de internet, pide el certificado HTTPS a Let's Encrypt
+# (y lo renueva solo) y las pasa al frontend de Next.js.
+{$DOMINIO} {
+	encode zstd gzip
+
+	# Cabeceras de seguridad básicas
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+
+	# Permite subir documentos de hasta 5 MB (con margen)
+	request_body {
+		max_size 10MB
+	}
+
+	reverse_proxy frontend:3001
+}
